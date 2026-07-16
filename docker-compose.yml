@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: eve_postgres
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-eve_db}
+      POSTGRES_USER: ${DATABASE_USER:-eve_user}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-eve_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-eve_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: eve_backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      FASTAPI_ENV: ${FASTAPI_ENV:-development}
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: eve_frontend
+    depends_on:
+      - backend
+    environment:
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8000}
+      REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-/api}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+    command: npm start
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    name: eve_network
