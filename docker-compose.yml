@@ -17,6 +17,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - eve_network
 
   backend:
     build:
@@ -28,13 +30,22 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL}
-      FASTAPI_ENV: ${FASTAPI_ENV:-development}
-      SECRET_KEY: ${SECRET_KEY:-your-secret-key}
+      FASTAPI_ENV: ${FASTAPI_ENV:-production}
+      SECRET_KEY: ${SECRET_KEY}
+      APP_IP: 192.168.109.132
+      APP_PORT: 8000
+      EVE_NG_IP: 192.168.2.11
+      EVE_NG_FQDN: evengvlab4you.ddns.net
+      EVE_NG_PORT: 8443
+      EVE_NG_PROTOCOL: https
+      CORS_ORIGINS: '["http://192.168.109.132:3000", "http://localhost:3000"]'
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    networks:
+      - eve_network
 
   frontend:
     build:
@@ -44,17 +55,23 @@ services:
     depends_on:
       - backend
     environment:
-      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8000}
-      REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-/api}
+      REACT_APP_API_URL: http://192.168.109.132:8000
+      REACT_APP_API_BASE_URL: /api
+      REACT_APP_EVE_NG_IP: 192.168.2.11
+      REACT_APP_EVE_NG_FQDN: evengvlab4you.ddns.net
+      REACT_APP_EVE_NG_PORT: 8443
+      REACT_APP_EVE_NG_PROTOCOL: https
     ports:
       - "3000:3000"
     volumes:
       - ./frontend:/app
     command: npm start
+    networks:
+      - eve_network
 
 volumes:
   postgres_data:
 
 networks:
-  default:
-    name: eve_network
+  eve_network:
+    driver: bridge
