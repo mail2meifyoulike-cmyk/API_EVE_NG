@@ -22,14 +22,6 @@ const eveNgApi = axios.create({
   withCredentials: true, // Important for cookie-based auth
 });
 
-// Handle self-signed certificates in Node.js environment
-if (typeof window === 'undefined') {
-  const https = require('https');
-  eveNgApi.defaults.httpsAgent = new https.Agent({
-    rejectUnauthorized: false,
-  });
-}
-
 // Create axios instance for backend API
 const api = axios.create({
   baseURL: `${API_BASE_URL}${API_PREFIX}`,
