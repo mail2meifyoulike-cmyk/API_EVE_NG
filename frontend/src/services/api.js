@@ -20,10 +20,15 @@ const eveNgApi = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true, // Important for cookie-based auth
-  httpsAgent: {
-    rejectUnauthorized: false, // For self-signed certificates
-  },
 });
+
+// Handle self-signed certificates in Node.js environment
+if (typeof window === 'undefined') {
+  const https = require('https');
+  eveNgApi.defaults.httpsAgent = new https.Agent({
+    rejectUnauthorized: false,
+  });
+}
 
 // Create axios instance for backend API
 const api = axios.create({
@@ -33,9 +38,19 @@ const api = axios.create({
   },
 });
 
+// Add request interceptor for debugging
+eveNgApi.interceptors.request.use(
+  (config) => {
+    console.log(`[EVE-NG API] ${config.method.toUpperCase()} ${EVE_NG_BASE_URL}${config.url}`);
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // Add response interceptors to handle EVE-NG API format
 eveNgApi.interceptors.response.use(
   (response) => {
+    console.log(`[EVE-NG API Response]`, response.data);
     // EVE-NG returns responses in JSend format: { status: "success", code: 200, data: {...} }
     if (response.data && response.data.status === 'success') {
       return response;
@@ -46,8 +61,18 @@ eveNgApi.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('EVE-NG API Error:', error);
-    return Promise.reject(error);
+    console.error('[EVE-NG API Error] Full Error:', error);
+    if (error.response) {
+      console.error('[EVE-NG API] Response status:', error.response.status);
+      console.error('[EVE-NG API] Response data:', error.response.data);
+      return Promise.reject(error.response.data || error.message);
+    } else if (error.request) {
+      console.error('[EVE-NG API] No response received:', error.request);
+      return Promise.reject(new Error('No response from EVE-NG server. Check connection and CORS settings.'));
+    } else {
+      console.error('[EVE-NG API] Error:', error.message);
+      return Promise.reject(error);
+    }
   }
 );
 
@@ -55,6 +80,7 @@ eveNgApi.interceptors.response.use(
 
 export const loginToEveNG = async (username, password) => {
   try {
+    console.log('[Auth] Attempting login with username:', username);
     const response = await eveNgApi.post('/auth/login', {
       username,
       password,
@@ -64,11 +90,12 @@ export const loginToEveNG = async (username, password) => {
     if (response.data.status === 'success') {
       localStorage.setItem('eve_ng_username', username);
       localStorage.setItem('eve_ng_authenticated', 'true');
+      console.log('[Auth] Login successful');
       return response.data;
     }
     throw new Error('Authentication failed');
   } catch (error) {
-    console.error('EVE-NG Login Error:', error);
+    console.error('[Auth] Login Error:', error);
     throw error.response?.data || error;
   }
 };
@@ -78,8 +105,9 @@ export const logoutFromEveNG = async () => {
     await eveNgApi.post('/auth/logout');
     localStorage.removeItem('eve_ng_username');
     localStorage.removeItem('eve_ng_authenticated');
+    console.log('[Auth] Logout successful');
   } catch (error) {
-    console.error('EVE-NG Logout Error:', error);
+    console.error('[Auth] Logout Error:', error);
     localStorage.removeItem('eve_ng_username');
     localStorage.removeItem('eve_ng_authenticated');
   }
@@ -93,21 +121,35 @@ export const isEveNGAuthenticated = () => {
 
 export const fetchClusterStatus = async () => {
   try {
+    console.log('[API] Fetching cluster status...');
     const response = await eveNgApi.get('/cluster');
-    return response.data?.data || {};
+    const data = response.data?.data || {};
+    console.log('[API] Cluster status:', data);
+    return data;
   } catch (error) {
-    console.error('Error fetching cluster status:', error);
-    throw error;
+    console.error('[API] Error fetching cluster status:', error);
+    // Return graceful fallback
+    return {
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    };
   }
 };
 
 export const fetchSystemStatus = async () => {
   try {
+    console.log('[API] Fetching system status...');
     const response = await eveNgApi.get('/status');
-    return response.data?.data || {};
+    const data = response.data?.data || {};
+    console.log('[API] System status:', data);
+    return data;
   } catch (error) {
-    console.error('Error fetching system status:', error);
-    throw error;
+    console.error('[API] Error fetching system status:', error);
+    // Return graceful fallback
+    return {
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    };
   }
 };
 
@@ -136,11 +178,14 @@ export const fetchCompleteSystemStatus = async () => {
 
 export const fetchEveNGLabs = async () => {
   try {
+    console.log('[API] Fetching labs...');
     const response = await eveNgApi.get('/labs');
     const labs = response.data?.data || {};
-    return typeof labs === 'object' ? Object.values(labs) : labs;
+    const result = typeof labs === 'object' ? Object.values(labs) : labs;
+    console.log('[API] Labs fetched:', result);
+    return result;
   } catch (error) {
-    console.error('Error fetching EVE-NG labs:', error);
+    console.error('[API] Error fetching EVE-NG labs:', error);
     return [];
   }
 };
@@ -226,9 +271,12 @@ export const fetchLabStats = async (labId) => {
 
 export const fetchAllTemplates = async () => {
   try {
+    console.log('[API] Fetching templates...');
     const response = await eveNgApi.get('/list/templates');
     const templates = response.data?.data || {};
-    return typeof templates === 'object' ? Object.values(templates) : templates;
+    const result = typeof templates === 'object' ? Object.values(templates) : templates;
+    console.log('[API] Templates:', result);
+    return result;
   } catch (error) {
     console.error('Error fetching templates:', error);
     return [];
@@ -275,25 +323,30 @@ export const fetchEveNGTopology = async (labId) => {
 
 export const fetchDashboardStats = async () => {
   try {
+    console.log('[API] Fetching dashboard stats...');
     const [systemStatus, labs] = await Promise.all([
       fetchSystemStatus(),
       fetchEveNGLabs(),
     ]);
 
-    return {
-      total_labs: Object.keys(systemStatus.labs || {}).length || 0,
-      running_labs: systemStatus.running_labs || 0,
-      stopped_labs: systemStatus.stopped_labs || 0,
-      active_users: systemStatus.active_users || 0,
-      cpu_percent: systemStatus.cpu_percent || 0,
-      memory_percent: systemStatus.memory_percent || 0,
-      disk_usage: systemStatus.disk_usage || '0GB',
-      uptime: systemStatus.uptime || '0h',
-      version: systemStatus.version || 'Unknown',
+    const stats = {
+      total_labs: Array.isArray(labs) ? labs.length : 0,
+      running_labs: systemStatus?.running_labs || 0,
+      stopped_labs: systemStatus?.stopped_labs || 0,
+      active_users: systemStatus?.active_users || 0,
+      cpu_percent: systemStatus?.cpu_percent || 0,
+      memory_percent: systemStatus?.memory_percent || 0,
+      disk_percent: systemStatus?.disk_percent || 0,
+      disk_usage: systemStatus?.disk_usage || '0GB',
+      uptime: systemStatus?.uptime || '0h',
+      version: systemStatus?.version || 'Unknown',
       labs: labs,
     };
+
+    console.log('[API] Dashboard stats:', stats);
+    return stats;
   } catch (error) {
-    console.error('Error fetching dashboard stats:', error);
+    console.error('[API] Error fetching dashboard stats:', error);
     return {
       total_labs: 0,
       running_labs: 0,
@@ -301,6 +354,7 @@ export const fetchDashboardStats = async () => {
       active_users: 0,
       cpu_percent: 0,
       memory_percent: 0,
+      disk_percent: 0,
       disk_usage: '0GB',
       uptime: '0h',
       version: 'Unknown',
