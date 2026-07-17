@@ -164,18 +164,30 @@ function SetupGuides() {
       <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-6">
         <h3 className="text-xl font-bold text-white mb-4">Quick Links & Resources</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <a href="#" className="text-blue-400 hover:text-blue-300 transition">
+          <button
+            onClick={() => window.open('https://www.eve-ng.net/', '_blank')}
+            className="text-blue-400 hover:text-blue-300 transition text-left"
+          >
             📖 EVE-NG Official Documentation
-          </a>
-          <a href="#" className="text-blue-400 hover:text-blue-300 transition">
+          </button>
+          <button
+            onClick={() => window.open('https://www.eve-ng.net/documentation/videos', '_blank')}
+            className="text-blue-400 hover:text-blue-300 transition text-left"
+          >
             🎓 Training Videos
-          </a>
-          <a href="#" className="text-blue-400 hover:text-blue-300 transition">
+          </button>
+          <button
+            onClick={() => window.open('https://www.eve-ng.net/documentation/troubleshooting', '_blank')}
+            className="text-blue-400 hover:text-blue-300 transition text-left"
+          >
             🐛 Troubleshooting Guide
-          </a>
-          <a href="#" className="text-blue-400 hover:text-blue-300 transition">
+          </button>
+          <button
+            onClick={() => window.open('https://www.eve-ng.net/community', '_blank')}
+            className="text-blue-400 hover:text-blue-300 transition text-left"
+          >
             💬 Community Forum
-          </a>
+          </button>
         </div>
       </div>
     </div>
