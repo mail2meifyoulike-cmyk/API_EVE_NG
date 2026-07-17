@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
+import ClusterStatus from './components/ClusterStatus';
 import LabSolutions from './components/LabSolutions';
 import Monitoring from './components/Monitoring';
 import Reporting from './components/Reporting';
@@ -9,36 +10,19 @@ import Reservations from './components/Reservations';
 import UserManagement from './components/UserManagement';
 import Administration from './components/Administration';
 import SetupGuides from './components/SetupGuides';
-import { fetchDashboardStats } from './services/api';
 import './App.css';
 
 function App() {
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-
-  useEffect(() => {
-    loadDashboardData();
-    const interval = setInterval(loadDashboardData, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadDashboardData = async () => {
-    try {
-      const data = await fetchDashboardStats();
-      setStats(data);
-    } catch (error) {
-      console.error('Failed to load dashboard stats:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard stats={stats} />;
+        return <Dashboard />;
+      case 'cluster-status':
+        return <ClusterStatus />;
       case 'lab-solutions':
         return <LabSolutions />;
       case 'monitoring':
@@ -56,7 +40,7 @@ function App() {
       case 'setup-guides':
         return <SetupGuides />;
       default:
-        return <Dashboard stats={stats} />;
+        return <Dashboard />;
     }
   };
 
@@ -87,7 +71,7 @@ function App() {
             <div className="flex items-center space-x-4">
               <div className="text-right">
                 <p className="text-sm text-blue-100">Connected to:</p>
-                <p className="font-semibold">192.168.2.11</p>
+                <p className="font-semibold">evengvlab4you.ddns.net</p>
               </div>
               <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
                 <span className="text-white font-bold">👤</span>
@@ -109,7 +93,7 @@ function App() {
 
         {/* Footer */}
         <footer className="bg-slate-900 border-t border-slate-700 text-gray-400 text-center py-4">
-          <p>EVE Lab Automation v2.0 - Professional Edition | Connected to EVE-NG at 192.168.2.11</p>
+          <p>EVE Lab Automation v2.0 - Professional Edition | Connected to EVE-NG at evengvlab4you.ddns.net:8443</p>
         </footer>
       </div>
     </div>
