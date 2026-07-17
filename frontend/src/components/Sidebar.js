@@ -3,6 +3,7 @@ import React from 'react';
 function Sidebar({ activeTab, setActiveTab, sidebarOpen, setSidebarOpen }) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { id: 'cluster-status', label: 'Cluster Status', icon: '🖥️' },
     { id: 'lab-solutions', label: 'Lab Solutions', icon: '🧪' },
     { id: 'my-labs', label: 'My Labs', icon: '📁' },
     { id: 'reservations', label: 'Reservations', icon: '📅' },
@@ -17,9 +18,9 @@ function Sidebar({ activeTab, setActiveTab, sidebarOpen, setSidebarOpen }) {
     <aside
       className={`${
         sidebarOpen ? 'w-64' : 'w-20'
-      } bg-slate-900 border-r border-slate-700 transition-all duration-300 overflow-y-auto`}
+      } bg-slate-900 border-r border-slate-700 transition-all duration-300 overflow-y-auto flex flex-col`}
     >
-      <div className="p-4">
+      <div className="p-4 flex-1">
         <div className="flex items-center justify-between mb-8">
           {sidebarOpen && <h2 className="text-lg font-bold text-white">EVE LAB</h2>}
           <button
@@ -42,6 +43,7 @@ function Sidebar({ activeTab, setActiveTab, sidebarOpen, setSidebarOpen }) {
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-400 hover:bg-slate-800 hover:text-white'
               }`}
+              title={!sidebarOpen ? item.label : ''}
             >
               <span className="text-xl">{item.icon}</span>
               {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
@@ -52,10 +54,11 @@ function Sidebar({ activeTab, setActiveTab, sidebarOpen, setSidebarOpen }) {
 
       {/* Footer Info */}
       {sidebarOpen && (
-        <div className="absolute bottom-4 left-4 right-4 bg-slate-800 rounded-lg p-3 text-xs text-gray-300">
-          <p className="font-semibold mb-2">Server Info</p>
-          <p>IP: 192.168.2.11</p>
-          <p>FQDN: evengvlab4you.ddns.net</p>
+        <div className="p-4 border-t border-slate-700 bg-slate-800 rounded-lg m-4 text-xs text-gray-300">
+          <p className="font-semibold mb-2">🌐 EVE-NG Server</p>
+          <p className="mb-1">📍 IP: 192.168.2.11</p>
+          <p className="mb-1">🔗 FQDN: evengvlab4you.ddns.net</p>
+          <p>🔒 HTTPS : 8443</p>
         </div>
       )}
     </aside>
