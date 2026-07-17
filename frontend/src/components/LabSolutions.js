@@ -3,6 +3,8 @@ import { fetchSDWANLabs, fetchRoutingLabs, fetchSecurityLabs } from '../services
 import CreateLabModal from './CreateLabModal';
 import TemplatePublishModal from './TemplatePublishModal';
 import EveNGIntegration from './EveNGIntegration';
+import UploadTemplateModal from './UploadTemplateModal';
+import UploadedTemplatesManager from './UploadedTemplatesManager';
 
 function LabSolutions() {
   const [sdwanLabs, setSdwanLabs] = useState([]);
@@ -13,6 +15,8 @@ function LabSolutions() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [showEveNGIntegration, setShowEveNGIntegration] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showTemplatesManager, setShowTemplatesManager] = useState(false);
   const [fetchedTopology, setFetchedTopology] = useState(null);
 
   useEffect(() => {
@@ -49,6 +53,10 @@ function LabSolutions() {
     setFetchedTopology(topology);
   };
 
+  const handleTemplateUploaded = () => {
+    loadLabSolutions();
+  };
+
   const LabCard = ({ lab }) => (
     <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-6 hover:border-blue-500 transition">
       <h3 className="text-lg font-bold text-white mb-2">{lab.name}</h3>
@@ -73,25 +81,46 @@ function LabSolutions() {
         <p className="text-blue-100">Deploy pre-built network topologies for learning and testing</p>
       </div>
 
-      {/* Action Buttons */}
+      {/* Action Buttons - Row 1 */}
       <div className="flex flex-wrap gap-3">
         <button
           onClick={() => setShowCreateModal(true)}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium transition"
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium transition flex items-center space-x-2"
         >
-          ➕ Create New Lab
+          <span>➕</span>
+          <span>Create New Lab</span>
         </button>
         <button
           onClick={() => setShowPublishModal(true)}
-          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded font-medium transition"
+          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded font-medium transition flex items-center space-x-2"
         >
-          📤 Publish Custom Template
+          <span>📤</span>
+          <span>Publish Custom Template</span>
         </button>
         <button
-          onClick={() => setShowEveNGIntegration(!showEveNGIntegration)}
-          className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded font-medium transition"
+          onClick={() => setShowUploadModal(true)}
+          className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded font-medium transition flex items-center space-x-2"
         >
-          🔗 {showEveNGIntegration ? 'Hide' : 'Fetch'} EVE-NG Topology
+          <span>📦</span>
+          <span>Upload Prebuilt Template</span>
+        </button>
+      </div>
+
+      {/* Action Buttons - Row 2 */}
+      <div className="flex flex-wrap gap-3">
+        <button
+          onClick={() => setShowEveNGIntegration(!showEveNGIntegration)}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded font-medium transition flex items-center space-x-2"
+        >
+          <span>🔗</span>
+          <span>{showEveNGIntegration ? 'Hide' : 'Fetch'} EVE-NG Topology</span>
+        </button>
+        <button
+          onClick={() => setShowTemplatesManager(true)}
+          className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded font-medium transition flex items-center space-x-2"
+        >
+          <span>📋</span>
+          <span>Manage Uploaded Templates</span>
         </button>
       </div>
 
@@ -101,7 +130,7 @@ function LabSolutions() {
       )}
 
       {/* Category Tabs */}
-      <div className="flex space-x-4 border-b border-slate-700">
+      <div className="flex space-x-4 border-b border-slate-700 overflow-x-auto">
         {[
           { id: 'sdwan', label: 'SD-WAN Solutions', icon: '🌐' },
           { id: 'routing', label: 'Routing & BGP', icon: '🔀' },
@@ -110,7 +139,7 @@ function LabSolutions() {
           <button
             key={cat.id}
             onClick={() => setActiveCategory(cat.id)}
-            className={`px-4 py-3 font-medium transition-colors flex items-center space-x-2 ${
+            className={`px-4 py-3 font-medium transition-colors flex items-center space-x-2 whitespace-nowrap ${
               activeCategory === cat.id
                 ? 'text-blue-400 border-b-2 border-blue-400'
                 : 'text-gray-400 hover:text-white'
@@ -149,6 +178,17 @@ function LabSolutions() {
         isOpen={showPublishModal}
         onClose={() => setShowPublishModal(false)}
         onPublished={handlePublished}
+      />
+
+      <UploadTemplateModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        onTemplateUploaded={handleTemplateUploaded}
+      />
+
+      <UploadedTemplatesManager
+        isOpen={showTemplatesManager}
+        onClose={() => setShowTemplatesManager(false)}
       />
     </div>
   );
