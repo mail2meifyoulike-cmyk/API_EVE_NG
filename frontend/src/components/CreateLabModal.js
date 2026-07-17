@@ -10,6 +10,7 @@ function CreateLabModal({ isOpen, onClose, onLabCreated }) {
   const [labDescription, setLabDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingDevices, setLoadingDevices] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -20,10 +21,23 @@ function CreateLabModal({ isOpen, onClose, onLabCreated }) {
   const loadTemplates = async () => {
     try {
       setLoading(true);
+      setError('');
+      console.log('[CreateLabModal] Loading templates...');
+      
       const templateList = await fetchAllTemplates();
-      setTemplates(templateList);
+      console.log('[CreateLabModal] Templates loaded:', templateList);
+      
+      if (Array.isArray(templateList) && templateList.length > 0) {
+        setTemplates(templateList);
+      } else {
+        console.warn('[CreateLabModal] No templates returned, got:', templateList);
+        setTemplates([]);
+        setError('No templates available from EVE-NG server');
+      }
     } catch (error) {
-      console.error('Error loading templates:', error);
+      console.error('[CreateLabModal] Error loading templates:', error);
+      setError(`Failed to load templates: ${error.message || 'Unknown error'}`);
+      setTemplates([]);
     } finally {
       setLoading(false);
     }
@@ -33,16 +47,39 @@ function CreateLabModal({ isOpen, onClose, onLabCreated }) {
     setSelectedTemplate(templateName);
     setSelectedDevices([]);
     setTemplateDevices([]);
+    setError('');
 
     if (templateName) {
       try {
         setLoadingDevices(true);
+        console.log('[CreateLabModal] Loading devices for template:', templateName);
+        
         const devices = await fetchTemplateDevices(templateName);
+        console.log('[CreateLabModal] Devices loaded:', devices);
+        
         // Handle different response formats
-        const deviceList = devices.devices || devices.data || Object.values(devices) || [];
-        setTemplateDevices(Array.isArray(deviceList) ? deviceList : []);
+        let deviceList = [];
+        
+        if (Array.isArray(devices)) {
+          deviceList = devices;
+        } else if (devices.devices && Array.isArray(devices.devices)) {
+          deviceList = devices.devices;
+        } else if (devices.data && Array.isArray(devices.data)) {
+          deviceList = devices.data;
+        } else if (typeof devices === 'object' && devices !== null) {
+          // Convert object to array
+          deviceList = Object.values(devices).filter(item => item && typeof item === 'object');
+        }
+        
+        console.log('[CreateLabModal] Processed device list:', deviceList);
+        setTemplateDevices(deviceList);
+        
+        if (deviceList.length === 0) {
+          setError(`No devices found in template: ${templateName}`);
+        }
       } catch (error) {
-        console.error('Error loading template devices:', error);
+        console.error('[CreateLabModal] Error loading template devices:', error);
+        setError(`Failed to load devices: ${error.message || 'Unknown error'}`);
         setTemplateDevices([]);
       } finally {
         setLoadingDevices(false);
@@ -68,22 +105,25 @@ function CreateLabModal({ isOpen, onClose, onLabCreated }) {
 
   const handleCreateLab = async () => {
     if (!labName.trim()) {
-      alert('Please enter a lab name');
+      setError('Please enter a lab name');
       return;
     }
 
     if (!selectedTemplate) {
-      alert('Please select a template');
+      setError('Please select a template');
       return;
     }
 
     if (selectedDevices.length === 0) {
-      alert('Please select at least one device');
+      setError('Please select at least one device');
       return;
     }
 
     try {
       setLoading(true);
+      setError('');
+      console.log('[CreateLabModal] Creating lab:', { labName, selectedTemplate, selectedDevices });
+      
       const topology = {
         template: selectedTemplate,
         devices: selectedDevices.map((deviceId) => {
@@ -100,13 +140,14 @@ function CreateLabModal({ isOpen, onClose, onLabCreated }) {
       setSelectedTemplate('');
       setSelectedDevices([]);
       setTemplateDevices([]);
+      setError('');
       
       onLabCreated();
       onClose();
       alert('Lab created successfully!');
     } catch (error) {
-      console.error('Error creating lab:', error);
-      alert(`Error creating lab: ${error.message || 'Unknown error'}`);
+      console.error('[CreateLabModal] Error creating lab:', error);
+      setError(`Error creating lab: ${error.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -127,7 +168,14 @@ function CreateLabModal({ isOpen, onClose, onLabCreated }) {
           </button>
         </div>
 
-        <div className="space-y-4 max-h-96 overflow-y-auto">
+        {/* Error Messages */}
+        {error && (
+          <div className="bg-red-900/50 border border-red-500 text-red-300 p-3 rounded mb-4">
+            ⚠️ {error}
+          </div>
+        )}
+
+        <div className="space-y-4 max-h-[500px] overflow-y-auto">
           {/* Lab Name */}
           <div>
             <label className="block text-gray-300 text-sm font-medium mb-2">
@@ -162,19 +210,29 @@ function CreateLabModal({ isOpen, onClose, onLabCreated }) {
             <label className="block text-gray-300 text-sm font-medium mb-2">
               Select Template *
             </label>
-            <select
-              value={selectedTemplate}
-              onChange={(e) => handleTemplateChange(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-            >
-              <option value="">-- Choose a template --</option>
-              {templates.map((template) => (
-                <option key={template.id || template.name} value={template.name || template.id}>
-                  {template.name || template.id}
-                </option>
-              ))}
-            </select>
-            {loading && <p className="text-gray-400 text-sm mt-1">Loading templates...</p>}
+            {loading && templates.length === 0 ? (
+              <div className="flex items-center space-x-2 text-gray-400">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+                <span>Loading templates...</span>
+              </div>
+            ) : templates.length === 0 ? (
+              <div className="bg-yellow-900/30 border border-yellow-600 text-yellow-400 p-3 rounded text-sm">
+                ⚠️ No templates available. Please ensure EVE-NG is running and has templates configured.
+              </div>
+            ) : (
+              <select
+                value={selectedTemplate}
+                onChange={(e) => handleTemplateChange(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="">-- Choose a template --</option>
+                {templates.map((template) => (
+                  <option key={template.id || template.name} value={template.name || template.id}>
+                    {template.name || template.id}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Device Selection */}
@@ -182,17 +240,22 @@ function CreateLabModal({ isOpen, onClose, onLabCreated }) {
             <div className="bg-slate-800/50 border border-slate-700 rounded p-4">
               <div className="flex justify-between items-center mb-3">
                 <h3 className="text-lg font-bold text-white">🖥️ Available Devices</h3>
-                <button
-                  onClick={handleSelectAllDevices}
-                  className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition"
-                >
-                  {selectedDevices.length === templateDevices.length ? 'Deselect All' : 'Select All'}
-                </button>
+                {templateDevices.length > 0 && (
+                  <button
+                    onClick={handleSelectAllDevices}
+                    className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition"
+                  >
+                    {selectedDevices.length === templateDevices.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                )}
               </div>
 
               {loadingDevices ? (
                 <div className="flex justify-center py-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+                    <span className="text-gray-400">Loading devices...</span>
+                  </div>
                 </div>
               ) : templateDevices.length > 0 ? (
                 <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -212,6 +275,9 @@ function CreateLabModal({ isOpen, onClose, onLabCreated }) {
                           </p>
                           {device.type && (
                             <p className="text-gray-400 text-sm">{device.type}</p>
+                          )}
+                          {device.image && (
+                            <p className="text-gray-500 text-xs">📦 {device.image}</p>
                           )}
                         </div>
                         {selectedDevices.includes(deviceId) && (
@@ -253,8 +319,8 @@ function CreateLabModal({ isOpen, onClose, onLabCreated }) {
           </button>
           <button
             onClick={handleCreateLab}
-            disabled={loading}
-            className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-900 text-white py-2 rounded font-medium transition"
+            disabled={loading || templates.length === 0}
+            className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-900 disabled:cursor-not-allowed text-white py-2 rounded font-medium transition"
           >
             {loading ? '⏳ Creating Lab...' : '🚀 Create Lab'}
           </button>
