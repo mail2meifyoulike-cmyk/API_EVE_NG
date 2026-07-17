@@ -1,26 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { fetchLabMetrics, fetchNodeStatus } from '../services/api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { fetchLabMetrics } from '../services/api';
 
 function Monitoring() {
-  const [metrics, setMetrics] = useState(null);
   const [timeRange, setTimeRange] = useState('1h');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadMetrics();
-  }, [timeRange]);
-
-  const loadMetrics = async () => {
+  const loadMetrics = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await fetchLabMetrics('all', timeRange).catch(() => null);
-      setMetrics(data);
+      await fetchLabMetrics('all', timeRange).catch(() => null);
     } catch (error) {
       console.error('Error loading metrics:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeRange]);
+
+  useEffect(() => {
+    loadMetrics();
+  }, [loadMetrics]);
 
   return (
     <div className="space-y-6">
