@@ -6,8 +6,8 @@ const EVE_NG_FQDN = process.env.REACT_APP_EVE_NG_FQDN || 'evengvlab4you.ddns.net
 const EVE_NG_PORT = process.env.REACT_APP_EVE_NG_PORT || '8443';
 const EVE_NG_PROTOCOL = process.env.REACT_APP_EVE_NG_PROTOCOL || 'https';
 
-// Direct EVE-NG API URLs
-const EVE_NG_API_URL = `${EVE_NG_PROTOCOL}://${EVE_NG_FQDN}:${EVE_NG_PORT}/api`;
+// EVE-NG API Base URL
+const EVE_NG_BASE_URL = `${EVE_NG_PROTOCOL}://${EVE_NG_FQDN}:${EVE_NG_PORT}/api`;
 
 // Backend API URLs (if applicable)
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -15,10 +15,11 @@ const API_PREFIX = process.env.REACT_APP_API_BASE_URL || '/api';
 
 // Create axios instance for EVE-NG Direct API
 const eveNgApi = axios.create({
-  baseURL: EVE_NG_API_URL,
+  baseURL: EVE_NG_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Important for cookie-based auth
   httpsAgent: {
     rejectUnauthorized: false, // For self-signed certificates
   },
@@ -32,49 +33,85 @@ const api = axios.create({
   },
 });
 
-// Add auth interceptors
-eveNgApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem('eve_ng_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Add response interceptors to handle EVE-NG API format
+eveNgApi.interceptors.response.use(
+  (response) => {
+    // EVE-NG returns responses in JSend format: { status: "success", code: 200, data: {...} }
+    if (response.data && response.data.status === 'success') {
+      return response;
+    }
+    if (response.data && response.data.status === 'fail') {
+      throw new Error(response.data.message || 'EVE-NG API Error');
+    }
+    return response;
+  },
+  (error) => {
+    console.error('EVE-NG API Error:', error);
+    return Promise.reject(error);
   }
-  return config;
-});
+);
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('eve_ng_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// ==================== EVE-NG AUTHENTICATION ====================
 
-// ==================== EVE-NG DIRECT API CALLS ====================
-
-// EVE-NG Authentication
+/**
+ * Authenticate with EVE-NG Server
+ * @param {string} username - EVE-NG username
+ * @param {string} password - EVE-NG password
+ * @returns {Promise} Authentication response
+ */
 export const loginToEveNG = async (username, password) => {
   try {
     const response = await eveNgApi.post('/auth/login', {
       username,
       password,
+      html5: '-1', // Required for Pro version
     });
-    if (response.data.data && response.data.data.token) {
-      localStorage.setItem('eve_ng_token', response.data.data.token);
+
+    // Save credentials for session management
+    if (response.data.status === 'success') {
+      localStorage.setItem('eve_ng_username', username);
+      localStorage.setItem('eve_ng_authenticated', 'true');
+      return response.data;
     }
-    return response.data;
+    throw new Error('Authentication failed');
   } catch (error) {
+    console.error('EVE-NG Login Error:', error);
     throw error.response?.data || error;
   }
 };
 
-export const logoutFromEveNG = () => {
-  localStorage.removeItem('eve_ng_token');
+/**
+ * Logout from EVE-NG
+ */
+export const logoutFromEveNG = async () => {
+  try {
+    await eveNgApi.post('/auth/logout');
+    localStorage.removeItem('eve_ng_username');
+    localStorage.removeItem('eve_ng_authenticated');
+  } catch (error) {
+    console.error('EVE-NG Logout Error:', error);
+    localStorage.removeItem('eve_ng_username');
+    localStorage.removeItem('eve_ng_authenticated');
+  }
 };
 
-// Get Real-time Cluster Status from EVE-NG
+/**
+ * Check if authenticated with EVE-NG
+ */
+export const isEveNGAuthenticated = () => {
+  return localStorage.getItem('eve_ng_authenticated') === 'true';
+};
+
+// ==================== CLUSTER & SYSTEM STATUS ====================
+
+/**
+ * Get real-time cluster status from EVE-NG
+ * Endpoint: GET /api/cluster
+ * Returns cluster node information and status
+ */
 export const fetchClusterStatus = async () => {
   try {
-    const response = await eveNgApi.get('/status');
+    const response = await eveNgApi.get('/cluster');
     return response.data?.data || {};
   } catch (error) {
     console.error('Error fetching cluster status:', error);
@@ -82,55 +119,82 @@ export const fetchClusterStatus = async () => {
   }
 };
 
-// Get System Information
-export const fetchSystemInfo = async () => {
+/**
+ * Get system status from EVE-NG
+ * Endpoint: GET /api/status
+ * Returns system statistics (CPU, Memory, Disk, Labs, etc.)
+ */
+export const fetchSystemStatus = async () => {
   try {
-    const response = await eveNgApi.get('/system/info');
+    const response = await eveNgApi.get('/status');
     return response.data?.data || {};
   } catch (error) {
-    console.error('Error fetching system info:', error);
+    console.error('Error fetching system status:', error);
     throw error;
   }
 };
 
-// ==================== EVE-NG TEMPLATES ====================
-
-// Get all available templates
-export const fetchAllTemplates = async () => {
+/**
+ * Get combined cluster and system status
+ * Fetches both endpoints for complete system information
+ */
+export const fetchCompleteSystemStatus = async () => {
   try {
-    const response = await eveNgApi.get('/list/templates');
-    return response.data?.data || [];
-  } catch (error) {
-    console.error('Error fetching templates:', error);
-    return [];
-  }
-};
+    const [clusterResponse, statusResponse] = await Promise.all([
+      eveNgApi.get('/cluster'),
+      eveNgApi.get('/status'),
+    ]);
 
-// Get specific template details and devices
-export const fetchTemplateDevices = async (templateName) => {
-  try {
-    const response = await eveNgApi.get(`/list/templates/${templateName}`);
-    return response.data?.data || {};
+    const clusterData = clusterResponse.data?.data || {};
+    const statusData = statusResponse.data?.data || {};
+
+    return {
+      cluster: clusterData,
+      status: statusData,
+      timestamp: new Date().toISOString(),
+    };
   } catch (error) {
-    console.error(`Error fetching template ${templateName} devices:`, error);
-    return {};
+    console.error('Error fetching complete system status:', error);
+    throw error;
   }
 };
 
 // ==================== EVE-NG LABS ====================
 
-// Get all labs
+/**
+ * Get list of all labs
+ * Endpoint: GET /api/labs
+ */
 export const fetchEveNGLabs = async () => {
   try {
     const response = await eveNgApi.get('/labs');
-    return response.data?.data || [];
+    const labs = response.data?.data || {};
+    // Convert object to array if needed
+    return typeof labs === 'object' ? Object.values(labs) : labs;
   } catch (error) {
     console.error('Error fetching EVE-NG labs:', error);
     return [];
   }
 };
 
-// Create new lab
+/**
+ * Get lab details
+ * Endpoint: GET /api/labs/{lab_id}
+ */
+export const fetchLabDetails = async (labId) => {
+  try {
+    const response = await eveNgApi.get(`/labs/${labId}`);
+    return response.data?.data || {};
+  } catch (error) {
+    console.error(`Error fetching lab ${labId} details:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Create new lab
+ * Endpoint: POST /api/labs
+ */
 export const createEveNGLab = async (labData) => {
   try {
     const response = await eveNgApi.post('/labs', {
@@ -145,18 +209,10 @@ export const createEveNGLab = async (labData) => {
   }
 };
 
-// Get lab details
-export const fetchLabDetails = async (labId) => {
-  try {
-    const response = await eveNgApi.get(`/labs/${labId}`);
-    return response.data?.data || {};
-  } catch (error) {
-    console.error(`Error fetching lab ${labId} details:`, error);
-    throw error;
-  }
-};
-
-// Update lab
+/**
+ * Update lab
+ * Endpoint: PUT /api/labs/{lab_id}
+ */
 export const updateEveNGLab = async (labId, labData) => {
   try {
     const response = await eveNgApi.put(`/labs/${labId}`, {
@@ -171,7 +227,10 @@ export const updateEveNGLab = async (labId, labData) => {
   }
 };
 
-// Delete lab
+/**
+ * Delete lab
+ * Endpoint: DELETE /api/labs/{lab_id}
+ */
 export const deleteEveNGLab = async (labId) => {
   try {
     await eveNgApi.delete(`/labs/${labId}`);
@@ -181,7 +240,10 @@ export const deleteEveNGLab = async (labId) => {
   }
 };
 
-// Start lab
+/**
+ * Start lab (power on all nodes)
+ * Endpoint: POST /api/labs/{lab_id}/start
+ */
 export const startEveNGLab = async (labId) => {
   try {
     const response = await eveNgApi.post(`/labs/${labId}/start`);
@@ -192,7 +254,10 @@ export const startEveNGLab = async (labId) => {
   }
 };
 
-// Stop lab
+/**
+ * Stop lab (power off all nodes)
+ * Endpoint: POST /api/labs/{lab_id}/stop
+ */
 export const stopEveNGLab = async (labId) => {
   try {
     const response = await eveNgApi.post(`/labs/${labId}/stop`);
@@ -203,65 +268,146 @@ export const stopEveNGLab = async (labId) => {
   }
 };
 
+/**
+ * Get lab statistics
+ * Endpoint: GET /api/labs/{lab_id}/stats
+ */
+export const fetchLabStats = async (labId) => {
+  try {
+    const response = await eveNgApi.get(`/labs/${labId}/stats`);
+    return response.data?.data || {};
+  } catch (error) {
+    console.error(`Error fetching lab ${labId} stats:`, error);
+    return {};
+  }
+};
+
+// ==================== EVE-NG TEMPLATES ====================
+
+/**
+ * Get all available templates
+ * Endpoint: GET /api/list/templates
+ */
+export const fetchAllTemplates = async () => {
+  try {
+    const response = await eveNgApi.get('/list/templates');
+    const templates = response.data?.data || {};
+    // Convert object to array if needed
+    return typeof templates === 'object' ? Object.values(templates) : templates;
+  } catch (error) {
+    console.error('Error fetching templates:', error);
+    return [];
+  }
+};
+
+/**
+ * Get template devices/nodes
+ * Endpoint: GET /api/list/templates/{template_name}
+ */
+export const fetchTemplateDevices = async (templateName) => {
+  try {
+    const response = await eveNgApi.get(`/list/templates/${templateName}`);
+    const data = response.data?.data || {};
+    
+    // EVE-NG returns devices as an object, convert to array
+    if (typeof data === 'object') {
+      return Object.values(data);
+    }
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error(`Error fetching template ${templateName} devices:`, error);
+    return [];
+  }
+};
+
+/**
+ * Get node types/images
+ * Endpoint: GET /api/list/nodes
+ */
+export const fetchNodeTypes = async () => {
+  try {
+    const response = await eveNgApi.get('/list/nodes');
+    const nodes = response.data?.data || {};
+    // Convert object to array if needed
+    return typeof nodes === 'object' ? Object.values(nodes) : nodes;
+  } catch (error) {
+    console.error('Error fetching node types:', error);
+    return [];
+  }
+};
+
 // ==================== DASHBOARD & MONITORING ====================
 
+/**
+ * Get comprehensive dashboard statistics
+ * Combines cluster status, system status, and lab information
+ */
 export const fetchDashboardStats = async () => {
   try {
-    const clusterStatus = await fetchClusterStatus();
+    const [systemStatus, labs] = await Promise.all([
+      fetchSystemStatus(),
+      fetchEveNGLabs(),
+    ]);
+
     return {
-      total_labs: clusterStatus.total_labs || 0,
-      running_labs: clusterStatus.running_labs || 0,
-      active_users: clusterStatus.active_users || 0,
-      disk_usage: clusterStatus.disk_usage || '0GB',
-      nodes: clusterStatus.nodes || [],
+      total_labs: Object.keys(systemStatus.labs || {}).length || 0,
+      running_labs: systemStatus.running_labs || 0,
+      stopped_labs: systemStatus.stopped_labs || 0,
+      active_users: systemStatus.active_users || 0,
+      cpu_percent: systemStatus.cpu_percent || 0,
+      memory_percent: systemStatus.memory_percent || 0,
+      disk_usage: systemStatus.disk_usage || '0GB',
+      uptime: systemStatus.uptime || '0h',
+      version: systemStatus.version || 'Unknown',
+      labs: labs,
     };
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
     return {
       total_labs: 0,
       running_labs: 0,
+      stopped_labs: 0,
       active_users: 0,
+      cpu_percent: 0,
+      memory_percent: 0,
       disk_usage: '0GB',
-      nodes: [],
+      uptime: '0h',
+      version: 'Unknown',
+      labs: [],
     };
   }
 };
 
+/**
+ * Get active users
+ * Endpoint: GET /api/list/users
+ */
 export const fetchActiveUsers = async () => {
   try {
-    const response = await eveNgApi.get('/system/users');
-    return response.data?.data || [];
+    const response = await eveNgApi.get('/list/users');
+    const users = response.data?.data || {};
+    return typeof users === 'object' ? Object.values(users) : users;
   } catch (error) {
     console.error('Error fetching active users:', error);
     return [];
   }
 };
 
-// ==================== LAB OPERATIONS ====================
+// ==================== LAB OPERATIONS (Wrapper Functions) ====================
 
-export const fetchLabs = async (skip = 0, limit = 100) => {
-  try {
-    return await fetchEveNGLabs();
-  } catch (error) {
-    console.error('Error fetching labs:', error);
-    return [];
-  }
+export const fetchLabs = async () => {
+  return fetchEveNGLabs();
 };
 
 export const getLab = async (labId) => {
-  try {
-    return await fetchLabDetails(labId);
-  } catch (error) {
-    console.error('Error fetching lab:', error);
-    throw error;
-  }
+  return fetchLabDetails(labId);
 };
 
 export const updateLabStatus = async (labId, status) => {
   try {
-    if (status === 'running') {
+    if (status === 'running' || status === 'start') {
       return await startEveNGLab(labId);
-    } else if (status === 'stopped') {
+    } else if (status === 'stopped' || status === 'stop') {
       return await stopEveNGLab(labId);
     }
   } catch (error) {
@@ -271,39 +417,19 @@ export const updateLabStatus = async (labId, status) => {
 };
 
 export const deleteLab = async (labId) => {
-  try {
-    return await deleteEveNGLab(labId);
-  } catch (error) {
-    console.error('Error deleting lab:', error);
-    throw error;
-  }
+  return deleteEveNGLab(labId);
 };
 
 export const startLab = async (labId) => {
-  try {
-    return await startEveNGLab(labId);
-  } catch (error) {
-    console.error('Error starting lab:', error);
-    throw error;
-  }
+  return startEveNGLab(labId);
 };
 
 export const stopLab = async (labId) => {
-  try {
-    return await stopEveNGLab(labId);
-  } catch (error) {
-    console.error('Error stopping lab:', error);
-    throw error;
-  }
+  return stopEveNGLab(labId);
 };
 
 export const createLab = async (name, description, topology) => {
-  try {
-    return await createEveNGLab({ name, description, topology });
-  } catch (error) {
-    console.error('Error creating lab:', error);
-    throw error;
-  }
+  return createEveNGLab({ name, description, topology });
 };
 
 // ==================== PREBUILT LAB CATEGORIES ====================
@@ -311,7 +437,9 @@ export const createLab = async (name, description, topology) => {
 export const fetchSDWANLabs = async () => {
   try {
     const labs = await fetchEveNGLabs();
-    return labs.filter((lab) => lab.name?.toLowerCase().includes('sdwan')) || [];
+    return Array.isArray(labs)
+      ? labs.filter((lab) => lab.name?.toLowerCase().includes('sdwan'))
+      : [];
   } catch (error) {
     console.error('Error fetching SD-WAN labs:', error);
     return [];
@@ -321,7 +449,9 @@ export const fetchSDWANLabs = async () => {
 export const fetchRoutingLabs = async () => {
   try {
     const labs = await fetchEveNGLabs();
-    return labs.filter((lab) => lab.name?.toLowerCase().includes('routing')) || [];
+    return Array.isArray(labs)
+      ? labs.filter((lab) => lab.name?.toLowerCase().includes('routing'))
+      : [];
   } catch (error) {
     console.error('Error fetching Routing labs:', error);
     return [];
@@ -331,7 +461,9 @@ export const fetchRoutingLabs = async () => {
 export const fetchSecurityLabs = async () => {
   try {
     const labs = await fetchEveNGLabs();
-    return labs.filter((lab) => lab.name?.toLowerCase().includes('security')) || [];
+    return Array.isArray(labs)
+      ? labs.filter((lab) => lab.name?.toLowerCase().includes('security'))
+      : [];
   } catch (error) {
     console.error('Error fetching Security labs:', error);
     return [];
@@ -380,48 +512,6 @@ export const deleteTemplate = async (templateId) => {
   }
 };
 
-export const updateTemplate = async (templateId, templateData) => {
-  try {
-    const response = await api.put(`/templates/${templateId}`, templateData);
-    return response.data;
-  } catch (error) {
-    console.error('Error updating template:', error);
-    throw error;
-  }
-};
-
-export const getTemplate = async (templateId) => {
-  try {
-    const response = await api.get(`/templates/${templateId}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching template:', error);
-    throw error;
-  }
-};
-
-export const downloadTemplate = async (templateId) => {
-  try {
-    const response = await api.get(`/templates/${templateId}/download`, {
-      responseType: 'blob',
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error downloading template:', error);
-    throw error;
-  }
-};
-
-export const extractTemplateArchive = async (templateId) => {
-  try {
-    const response = await api.post(`/templates/${templateId}/extract`);
-    return response.data;
-  } catch (error) {
-    console.error('Error extracting template:', error);
-    throw error;
-  }
-};
-
 export const publishTemplate = async (templateData) => {
   try {
     const response = await api.post('/templates/publish', {
@@ -434,18 +524,6 @@ export const publishTemplate = async (templateData) => {
   } catch (error) {
     console.error('Error publishing template:', error);
     throw error;
-  }
-};
-
-export const fetchTemplates = async (category = null) => {
-  try {
-    const response = await api.get('/templates', {
-      params: category ? { category } : {},
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching templates:', error);
-    return [];
   }
 };
 
@@ -487,138 +565,7 @@ export const deleteUser = async (userId) => {
   }
 };
 
-// ==================== DEPLOYMENTS ====================
-
-export const fetchDeployments = async (skip = 0, limit = 100, labId = null) => {
-  try {
-    const response = await api.get('/deployments', {
-      params: { skip, limit, lab_id: labId },
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching deployments:', error);
-    return [];
-  }
-};
-
-export const getDeployment = async (deploymentId) => {
-  try {
-    const response = await api.get(`/deployments/${deploymentId}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching deployment:', error);
-    throw error;
-  }
-};
-
-export const deleteDeployment = async (deploymentId) => {
-  try {
-    await api.delete(`/deployments/${deploymentId}`);
-  } catch (error) {
-    console.error('Error deleting deployment:', error);
-    throw error;
-  }
-};
-
-// ==================== RESERVATIONS ====================
-
-export const fetchReservations = async (skip = 0, limit = 100) => {
-  try {
-    const response = await api.get('/reservations', {
-      params: { skip, limit },
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching reservations:', error);
-    return [];
-  }
-};
-
-export const createReservation = async (labId, userId, startTime, endTime) => {
-  try {
-    const response = await api.post('/reservations', {
-      lab_id: labId,
-      user_id: userId,
-      start_time: startTime,
-      end_time: endTime,
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error creating reservation:', error);
-    throw error;
-  }
-};
-
-export const deleteReservation = async (reservationId) => {
-  try {
-    await api.delete(`/reservations/${reservationId}`);
-  } catch (error) {
-    console.error('Error deleting reservation:', error);
-    throw error;
-  }
-};
-
-// ==================== REPORTS ====================
-
-export const generateReport = async (reportType, params) => {
-  try {
-    const response = await api.get(`/reports/${reportType}`, {
-      params,
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error generating report:', error);
-    throw error;
-  }
-};
-
-export const fetchUserActivity = async (userId, skip = 0, limit = 100) => {
-  try {
-    const response = await api.get(`/reports/user-activity/${userId}`, {
-      params: { skip, limit },
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching user activity:', error);
-    return [];
-  }
-};
-
-export const fetchSystemLogs = async (skip = 0, limit = 100) => {
-  try {
-    const response = await api.get('/reports/system-logs', {
-      params: { skip, limit },
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching system logs:', error);
-    return [];
-  }
-};
-
 // ==================== CONFIGURATION ====================
-
-export const fetchSystemConfig = async () => {
-  try {
-    const response = await api.get('/system/config');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching system config:', error);
-    throw error;
-  }
-};
-
-export const updateSystemConfig = async (config) => {
-  try {
-    const response = await api.put('/system/config', config);
-    return response.data;
-  } catch (error) {
-    console.error('Error updating system config:', error);
-    throw error;
-  }
-};
-
-// ==================== HELPERS ====================
 
 export const getServerConfig = () => ({
   ip: EVE_NG_IP,
@@ -626,7 +573,7 @@ export const getServerConfig = () => ({
   port: EVE_NG_PORT,
   protocol: EVE_NG_PROTOCOL,
   baseUrl: API_BASE_URL,
-  eveNgApiUrl: EVE_NG_API_URL,
+  eveNgApiUrl: EVE_NG_BASE_URL,
 });
 
 export default api;
