@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchReservations, createReservation, updateReservation, deleteReservation } from '../services/api';
+import { fetchReservations, createReservation, deleteReservation } from '../services/api';
 
 function Reservations() {
   const [reservations, setReservations] = useState([]);
