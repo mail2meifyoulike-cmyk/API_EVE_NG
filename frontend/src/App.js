@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
-import LabStatus from './components/LabStatus';
-import DeploymentForm from './components/DeploymentForm';
+import LabSolutions from './components/LabSolutions';
+import Monitoring from './components/Monitoring';
+import Reporting from './components/Reporting';
+import MyLabs from './components/MyLabs';
+import Reservations from './components/Reservations';
+import UserManagement from './components/UserManagement';
+import Administration from './components/Administration';
+import SetupGuides from './components/SetupGuides';
 import { fetchDashboardStats } from './services/api';
 import './App.css';
 
@@ -9,6 +16,7 @@ function App() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     loadDashboardData();
@@ -27,80 +35,83 @@ function App() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-slate-900 to-slate-800">
-      {/* Header */}
-      <header className="bg-gradient-to-r from-blue-800 to-blue-600 text-white shadow-lg">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-                <span className="text-blue-600 font-bold text-lg">⚙️</span>
-              </div>
-              <h1 className="text-2xl font-bold">EVE Lab Automation</h1>
-            </div>
-            <div className="text-sm text-blue-100">Lab Orchestrator</div>
-          </div>
-        </div>
-      </header>
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return <Dashboard stats={stats} />;
+      case 'lab-solutions':
+        return <LabSolutions />;
+      case 'monitoring':
+        return <Monitoring />;
+      case 'reporting':
+        return <Reporting />;
+      case 'my-labs':
+        return <MyLabs />;
+      case 'reservations':
+        return <Reservations />;
+      case 'user-management':
+        return <UserManagement />;
+      case 'administration':
+        return <Administration />;
+      case 'setup-guides':
+        return <SetupGuides />;
+      default:
+        return <Dashboard stats={stats} />;
+    }
+  };
 
-      {/* Navigation */}
-      <nav className="bg-slate-800 border-b border-slate-700">
-        <div className="container mx-auto px-4">
-          <div className="flex space-x-8">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`px-4 py-3 font-medium transition-colors ${
-                activeTab === 'dashboard'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              📊 Dashboard
-            </button>
-            <button
-              onClick={() => setActiveTab('labs')}
-              className={`px-4 py-3 font-medium transition-colors ${
-                activeTab === 'labs'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              🧪 Lab Status
-            </button>
-            <button
-              onClick={() => setActiveTab('deploy')}
-              className={`px-4 py-3 font-medium transition-colors ${
-                activeTab === 'deploy'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              🚀 Deploy Lab
-            </button>
-          </div>
-        </div>
-      </nav>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-slate-900 to-slate-800 flex">
+      {/* Sidebar */}
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        {loading ? (
-          <div className="flex justify-center items-center h-96">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="bg-gradient-to-r from-blue-800 to-blue-600 text-white shadow-lg z-10">
+          <div className="px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="p-2 hover:bg-blue-700 rounded-lg transition"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold">EVE Lab Automation</h1>
+                <p className="text-blue-100 text-sm">Professional Network Emulation Platform</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-right">
+                <p className="text-sm text-blue-100">Connected to:</p>
+                <p className="font-semibold">192.168.2.11</p>
+              </div>
+              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold">👤</span>
+              </div>
+            </div>
           </div>
-        ) : (
-          <>
-            {activeTab === 'dashboard' && stats && <Dashboard stats={stats} />}
-            {activeTab === 'labs' && <LabStatus />}
-            {activeTab === 'deploy' && <DeploymentForm onSuccess={loadDashboardData} />}
-          </>
-        )}
-      </main>
+        </header>
 
-      {/* Footer */}
-      <footer className="bg-slate-900 border-t border-slate-700 text-gray-400 text-center py-4 mt-12">
-        <p>EVE Lab Automation API v1.0.0 - Powered by FastAPI & React</p>
-      </footer>
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-auto p-6">
+          {loading ? (
+            <div className="flex justify-center items-center h-96">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
+            </div>
+          ) : (
+            renderContent()
+          )}
+        </main>
+
+        {/* Footer */}
+        <footer className="bg-slate-900 border-t border-slate-700 text-gray-400 text-center py-4">
+          <p>EVE Lab Automation v2.0 - Professional Edition | Connected to EVE-NG at 192.168.2.11</p>
+        </footer>
+      </div>
     </div>
   );
 }
