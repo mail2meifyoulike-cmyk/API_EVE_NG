@@ -1,14 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
 function Dashboard({ stats = {} }) {
-  const [clusterStatus, setClusterStatus] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    // Initialize with safe defaults
-    setLoading(false);
-  }, []);
-
   // Safe data access with defaults - prevents null/undefined errors
   const runningLabs = stats?.running_labs ?? 0;
   const totalLabs = stats?.total_labs ?? 0;
