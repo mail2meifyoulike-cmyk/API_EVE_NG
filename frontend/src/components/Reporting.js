@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { generateReport, fetchUserActivity, fetchSystemLogs } from '../services/api';
 
 function Reporting() {
@@ -7,11 +7,7 @@ function Reporting() {
   const [systemLogs, setSystemLogs] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    loadReports();
-  }, [reportType]);
-
-  const loadReports = async () => {
+  const loadReports = useCallback(async () => {
     try {
       setLoading(true);
       if (reportType === 'user-activity') {
@@ -26,14 +22,15 @@ function Reporting() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [reportType]);
+
+  useEffect(() => {
+    loadReports();
+  }, [loadReports]);
 
   const downloadReport = async () => {
     try {
-      const data = await generateReport(reportType, {}).catch(() => null);
-      if (data) {
-        console.log('Report generated:', data);
-      }
+      await generateReport(reportType, {}).catch(() => null);
     } catch (error) {
       console.error('Error downloading report:', error);
     }
