@@ -214,7 +214,90 @@ export const fetchSecurityLabs = async () => {
   }
 };
 
-// Template Management
+// Template Management - Upload & File Handling
+export const uploadTemplate = async (formData, onUploadProgress) => {
+  try {
+    const response = await api.post('/templates/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onUploadProgress) {
+          onUploadProgress(progressEvent);
+        }
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error uploading template:', error);
+    throw error.response?.data || error;
+  }
+};
+
+export const fetchUploadedTemplates = async (category = null) => {
+  try {
+    const response = await api.get('/templates/uploaded', {
+      params: category ? { category } : {},
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching uploaded templates:', error);
+    throw error;
+  }
+};
+
+export const deleteTemplate = async (templateId) => {
+  try {
+    await api.delete(`/templates/${templateId}`);
+  } catch (error) {
+    console.error('Error deleting template:', error);
+    throw error;
+  }
+};
+
+export const updateTemplate = async (templateId, templateData) => {
+  try {
+    const response = await api.put(`/templates/${templateId}`, templateData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating template:', error);
+    throw error;
+  }
+};
+
+export const getTemplate = async (templateId) => {
+  try {
+    const response = await api.get(`/templates/${templateId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching template:', error);
+    throw error;
+  }
+};
+
+export const downloadTemplate = async (templateId) => {
+  try {
+    const response = await api.get(`/templates/${templateId}/download`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error downloading template:', error);
+    throw error;
+  }
+};
+
+export const extractTemplateArchive = async (templateId) => {
+  try {
+    const response = await api.post(`/templates/${templateId}/extract`);
+    return response.data;
+  } catch (error) {
+    console.error('Error extracting template:', error);
+    throw error;
+  }
+};
+
+// Template Publishing
 export const publishTemplate = async (templateData) => {
   try {
     const response = await api.post('/templates/publish', {
