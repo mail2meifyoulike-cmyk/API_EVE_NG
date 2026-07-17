@@ -3,12 +3,12 @@ import axios from 'axios';
 // EVE-NG Server Configuration
 const EVE_NG_IP = process.env.REACT_APP_EVE_NG_IP || '192.168.2.11';
 const EVE_NG_FQDN = process.env.REACT_APP_EVE_NG_FQDN || 'evengvlab4you.ddns.net';
-const EVE_NG_PORT = process.env.REACT_APP_EVE_NG_PORT || '8080';
-const EVE_NG_PROTOCOL = process.env.REACT_APP_EVE_NG_PROTOCOL || 'http';
+const EVE_NG_PORT = process.env.REACT_APP_EVE_NG_PORT || '8443';
+const EVE_NG_PROTOCOL = process.env.REACT_APP_EVE_NG_PROTOCOL || 'https';
 
 // API Base URLs
-const API_BASE_URL = process.env.REACT_APP_API_URL || `${EVE_NG_PROTOCOL}://${EVE_NG_IP}:${EVE_NG_PORT}`;
-const API_PREFIX = process.env.REACT_APP_API_BASE_URL || '/api/v0';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_PREFIX = process.env.REACT_APP_API_BASE_URL || '/api';
 
 const api = axios.create({
   baseURL: `${API_BASE_URL}${API_PREFIX}`,
@@ -52,7 +52,7 @@ export const logoutFromEveNG = () => {
 // Dashboard & Status
 export const fetchDashboardStats = async () => {
   try {
-    const response = await api.get('/status');
+    const response = await api.get('/status/dashboard');
     return response.data;
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
@@ -62,7 +62,7 @@ export const fetchDashboardStats = async () => {
 
 export const fetchClusterStatus = async () => {
   try {
-    const response = await api.get('/cluster/status');
+    const response = await api.get('/status/cluster');
     return response.data;
   } catch (error) {
     console.error('Error fetching cluster status:', error);
@@ -72,7 +72,7 @@ export const fetchClusterStatus = async () => {
 
 export const fetchActiveUsers = async () => {
   try {
-    const response = await api.get('/users/active');
+    const response = await api.get('/status/users/active');
     return response.data;
   } catch (error) {
     console.error('Error fetching active users:', error);
@@ -105,12 +105,13 @@ export const fetchPrebuiltLabs = async (category) => {
   }
 };
 
-export const createLab = async (name, description, template) => {
+export const createLab = async (name, description, topology, category = 'custom') => {
   try {
     const response = await api.post('/labs', {
       name,
       description,
-      template,
+      topology,
+      category,
     });
     return response.data;
   } catch (error) {
@@ -168,6 +169,20 @@ export const stopLab = async (labId) => {
   }
 };
 
+export const deployLab = async (labId, deploymentName, topology = null, provisioningTime = 30) => {
+  try {
+    const response = await api.post(`/labs/${labId}/deploy`, {
+      deployment_name: deploymentName,
+      topology,
+      provisioning_time: provisioningTime,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error deploying lab:', error);
+    throw error;
+  }
+};
+
 // Prebuilt Lab Categories
 export const fetchSDWANLabs = async () => {
   try {
@@ -175,7 +190,7 @@ export const fetchSDWANLabs = async () => {
     return response.data;
   } catch (error) {
     console.error('Error fetching SD-WAN labs:', error);
-    throw error;
+    return [];
   }
 };
 
@@ -185,7 +200,7 @@ export const fetchRoutingLabs = async () => {
     return response.data;
   } catch (error) {
     console.error('Error fetching Routing labs:', error);
-    throw error;
+    return [];
   }
 };
 
@@ -195,6 +210,68 @@ export const fetchSecurityLabs = async () => {
     return response.data;
   } catch (error) {
     console.error('Error fetching Security labs:', error);
+    return [];
+  }
+};
+
+// Template Management
+export const publishTemplate = async (templateData) => {
+  try {
+    const response = await api.post('/templates/publish', {
+      name: templateData.name,
+      description: templateData.description,
+      topology: templateData.topology,
+      category: templateData.category,
+      is_public: templateData.isPublic,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error publishing template:', error);
+    throw error;
+  }
+};
+
+export const fetchTemplates = async (category = null) => {
+  try {
+    const response = await api.get('/templates', {
+      params: category ? { category } : {},
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching templates:', error);
+    throw error;
+  }
+};
+
+// EVE-NG Integration
+export const fetchEveNGTopology = async (labId) => {
+  try {
+    const response = await api.get(`/eveng/labs/${labId}/topology`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching EVE-NG topology:', error);
+    throw error;
+  }
+};
+
+export const fetchEveNGLabs = async () => {
+  try {
+    const response = await api.get('/eveng/labs');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching EVE-NG labs:', error);
+    throw error;
+  }
+};
+
+export const syncEveNGLab = async (labId, labName = null) => {
+  try {
+    const response = await api.post(`/eveng/labs/${labId}/sync`, {
+      lab_name: labName,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error syncing EVE-NG lab:', error);
     throw error;
   }
 };
@@ -265,6 +342,38 @@ export const fetchNodeStatus = async (labId, nodeId) => {
     return response.data;
   } catch (error) {
     console.error('Error fetching node status:', error);
+    throw error;
+  }
+};
+
+// Deployments
+export const fetchDeployments = async (skip = 0, limit = 100, labId = null) => {
+  try {
+    const response = await api.get('/deployments', {
+      params: { skip, limit, lab_id: labId },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching deployments:', error);
+    throw error;
+  }
+};
+
+export const getDeployment = async (deploymentId) => {
+  try {
+    const response = await api.get(`/deployments/${deploymentId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching deployment:', error);
+    throw error;
+  }
+};
+
+export const deleteDeployment = async (deploymentId) => {
+  try {
+    await api.delete(`/deployments/${deploymentId}`);
+  } catch (error) {
+    console.error('Error deleting deployment:', error);
     throw error;
   }
 };
