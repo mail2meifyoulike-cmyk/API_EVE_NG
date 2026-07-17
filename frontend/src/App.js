@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import ClusterStatus from './components/ClusterStatus';
@@ -13,7 +13,6 @@ import SetupGuides from './components/SetupGuides';
 import './App.css';
 
 function App() {
-  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -82,13 +81,7 @@ function App() {
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-auto p-6">
-          {loading ? (
-            <div className="flex justify-center items-center h-96">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
-            </div>
-          ) : (
-            renderContent()
-          )}
+          {renderContent()}
         </main>
 
         {/* Footer */}
