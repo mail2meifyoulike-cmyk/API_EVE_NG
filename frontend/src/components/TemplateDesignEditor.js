@@ -44,18 +44,6 @@ function TemplateDesignEditor({ template, isOpen, onClose, onSave }) {
     setEditingDevice(device);
   };
 
-  const handleSaveDevice = () => {
-    if (editingDevice) {
-      setTemplateData((prev) => ({
-        ...prev,
-        devices: prev.devices?.map((d) =>
-          d.id === editingDevice.id ? editingDevice : d
-        ) || [],
-      }));
-      setEditingDevice(null);
-    }
-  };
-
   const handleAddLink = () => {
     setTemplateData((prev) => ({
       ...prev,
