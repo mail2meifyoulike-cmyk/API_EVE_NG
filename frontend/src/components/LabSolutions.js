@@ -17,7 +17,6 @@ function LabSolutions() {
   const [showEveNGIntegration, setShowEveNGIntegration] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showTemplatesManager, setShowTemplatesManager] = useState(false);
-  const [fetchedTopology, setFetchedTopology] = useState(null);
 
   useEffect(() => {
     loadLabSolutions();
@@ -47,10 +46,6 @@ function LabSolutions() {
 
   const handlePublished = () => {
     loadLabSolutions();
-  };
-
-  const handleTopologyFetched = (topology) => {
-    setFetchedTopology(topology);
   };
 
   const handleTemplateUploaded = () => {
@@ -126,7 +121,7 @@ function LabSolutions() {
 
       {/* EVE-NG Integration Section */}
       {showEveNGIntegration && (
-        <EveNGIntegration onTopologyFetched={handleTopologyFetched} />
+        <EveNGIntegration />
       )}
 
       {/* Category Tabs */}
