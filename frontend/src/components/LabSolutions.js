@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { fetchSDWANLabs, fetchRoutingLabs, fetchSecurityLabs } from '../services/api';
+import CreateLabModal from './CreateLabModal';
+import TemplatePublishModal from './TemplatePublishModal';
+import EveNGIntegration from './EveNGIntegration';
 
 function LabSolutions() {
   const [sdwanLabs, setSdwanLabs] = useState([]);
@@ -7,6 +10,10 @@ function LabSolutions() {
   const [securityLabs, setSecurityLabs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('sdwan');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [showEveNGIntegration, setShowEveNGIntegration] = useState(false);
+  const [fetchedTopology, setFetchedTopology] = useState(null);
 
   useEffect(() => {
     loadLabSolutions();
@@ -30,6 +37,18 @@ function LabSolutions() {
     }
   };
 
+  const handleLabCreated = () => {
+    loadLabSolutions();
+  };
+
+  const handlePublished = () => {
+    loadLabSolutions();
+  };
+
+  const handleTopologyFetched = (topology) => {
+    setFetchedTopology(topology);
+  };
+
   const LabCard = ({ lab }) => (
     <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-6 hover:border-blue-500 transition">
       <h3 className="text-lg font-bold text-white mb-2">{lab.name}</h3>
@@ -42,7 +61,7 @@ function LabSolutions() {
         ))}
       </div>
       <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-medium transition">
-        Deploy Lab
+        🚀 Deploy Lab
       </button>
     </div>
   );
@@ -53,6 +72,33 @@ function LabSolutions() {
         <h2 className="text-3xl font-bold mb-2">Lab Solutions</h2>
         <p className="text-blue-100">Deploy pre-built network topologies for learning and testing</p>
       </div>
+
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-3">
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium transition"
+        >
+          ➕ Create New Lab
+        </button>
+        <button
+          onClick={() => setShowPublishModal(true)}
+          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded font-medium transition"
+        >
+          📤 Publish Custom Template
+        </button>
+        <button
+          onClick={() => setShowEveNGIntegration(!showEveNGIntegration)}
+          className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded font-medium transition"
+        >
+          🔗 {showEveNGIntegration ? 'Hide' : 'Fetch'} EVE-NG Topology
+        </button>
+      </div>
+
+      {/* EVE-NG Integration Section */}
+      {showEveNGIntegration && (
+        <EveNGIntegration onTopologyFetched={handleTopologyFetched} />
+      )}
 
       {/* Category Tabs */}
       <div className="flex space-x-4 border-b border-slate-700">
@@ -91,6 +137,19 @@ function LabSolutions() {
             (securityLabs.length > 0 ? securityLabs.map((lab) => <LabCard key={lab.id} lab={lab} />) : <p className="text-gray-400">No Security labs available</p>)}
         </div>
       )}
+
+      {/* Modals */}
+      <CreateLabModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onLabCreated={handleLabCreated}
+      />
+
+      <TemplatePublishModal
+        isOpen={showPublishModal}
+        onClose={() => setShowPublishModal(false)}
+        onPublished={handlePublished}
+      />
     </div>
   );
 }
