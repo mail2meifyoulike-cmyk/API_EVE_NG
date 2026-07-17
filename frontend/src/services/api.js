@@ -53,21 +53,14 @@ eveNgApi.interceptors.response.use(
 
 // ==================== EVE-NG AUTHENTICATION ====================
 
-/**
- * Authenticate with EVE-NG Server
- * @param {string} username - EVE-NG username
- * @param {string} password - EVE-NG password
- * @returns {Promise} Authentication response
- */
 export const loginToEveNG = async (username, password) => {
   try {
     const response = await eveNgApi.post('/auth/login', {
       username,
       password,
-      html5: '-1', // Required for Pro version
+      html5: '-1',
     });
 
-    // Save credentials for session management
     if (response.data.status === 'success') {
       localStorage.setItem('eve_ng_username', username);
       localStorage.setItem('eve_ng_authenticated', 'true');
@@ -80,9 +73,6 @@ export const loginToEveNG = async (username, password) => {
   }
 };
 
-/**
- * Logout from EVE-NG
- */
 export const logoutFromEveNG = async () => {
   try {
     await eveNgApi.post('/auth/logout');
@@ -95,20 +85,12 @@ export const logoutFromEveNG = async () => {
   }
 };
 
-/**
- * Check if authenticated with EVE-NG
- */
 export const isEveNGAuthenticated = () => {
   return localStorage.getItem('eve_ng_authenticated') === 'true';
 };
 
 // ==================== CLUSTER & SYSTEM STATUS ====================
 
-/**
- * Get real-time cluster status from EVE-NG
- * Endpoint: GET /api/cluster
- * Returns cluster node information and status
- */
 export const fetchClusterStatus = async () => {
   try {
     const response = await eveNgApi.get('/cluster');
@@ -119,11 +101,6 @@ export const fetchClusterStatus = async () => {
   }
 };
 
-/**
- * Get system status from EVE-NG
- * Endpoint: GET /api/status
- * Returns system statistics (CPU, Memory, Disk, Labs, etc.)
- */
 export const fetchSystemStatus = async () => {
   try {
     const response = await eveNgApi.get('/status');
@@ -134,10 +111,6 @@ export const fetchSystemStatus = async () => {
   }
 };
 
-/**
- * Get combined cluster and system status
- * Fetches both endpoints for complete system information
- */
 export const fetchCompleteSystemStatus = async () => {
   try {
     const [clusterResponse, statusResponse] = await Promise.all([
@@ -161,15 +134,10 @@ export const fetchCompleteSystemStatus = async () => {
 
 // ==================== EVE-NG LABS ====================
 
-/**
- * Get list of all labs
- * Endpoint: GET /api/labs
- */
 export const fetchEveNGLabs = async () => {
   try {
     const response = await eveNgApi.get('/labs');
     const labs = response.data?.data || {};
-    // Convert object to array if needed
     return typeof labs === 'object' ? Object.values(labs) : labs;
   } catch (error) {
     console.error('Error fetching EVE-NG labs:', error);
@@ -177,10 +145,6 @@ export const fetchEveNGLabs = async () => {
   }
 };
 
-/**
- * Get lab details
- * Endpoint: GET /api/labs/{lab_id}
- */
 export const fetchLabDetails = async (labId) => {
   try {
     const response = await eveNgApi.get(`/labs/${labId}`);
@@ -191,10 +155,6 @@ export const fetchLabDetails = async (labId) => {
   }
 };
 
-/**
- * Create new lab
- * Endpoint: POST /api/labs
- */
 export const createEveNGLab = async (labData) => {
   try {
     const response = await eveNgApi.post('/labs', {
@@ -209,10 +169,6 @@ export const createEveNGLab = async (labData) => {
   }
 };
 
-/**
- * Update lab
- * Endpoint: PUT /api/labs/{lab_id}
- */
 export const updateEveNGLab = async (labId, labData) => {
   try {
     const response = await eveNgApi.put(`/labs/${labId}`, {
@@ -227,10 +183,6 @@ export const updateEveNGLab = async (labId, labData) => {
   }
 };
 
-/**
- * Delete lab
- * Endpoint: DELETE /api/labs/{lab_id}
- */
 export const deleteEveNGLab = async (labId) => {
   try {
     await eveNgApi.delete(`/labs/${labId}`);
@@ -240,10 +192,6 @@ export const deleteEveNGLab = async (labId) => {
   }
 };
 
-/**
- * Start lab (power on all nodes)
- * Endpoint: POST /api/labs/{lab_id}/start
- */
 export const startEveNGLab = async (labId) => {
   try {
     const response = await eveNgApi.post(`/labs/${labId}/start`);
@@ -254,10 +202,6 @@ export const startEveNGLab = async (labId) => {
   }
 };
 
-/**
- * Stop lab (power off all nodes)
- * Endpoint: POST /api/labs/{lab_id}/stop
- */
 export const stopEveNGLab = async (labId) => {
   try {
     const response = await eveNgApi.post(`/labs/${labId}/stop`);
@@ -268,10 +212,6 @@ export const stopEveNGLab = async (labId) => {
   }
 };
 
-/**
- * Get lab statistics
- * Endpoint: GET /api/labs/{lab_id}/stats
- */
 export const fetchLabStats = async (labId) => {
   try {
     const response = await eveNgApi.get(`/labs/${labId}/stats`);
@@ -284,15 +224,10 @@ export const fetchLabStats = async (labId) => {
 
 // ==================== EVE-NG TEMPLATES ====================
 
-/**
- * Get all available templates
- * Endpoint: GET /api/list/templates
- */
 export const fetchAllTemplates = async () => {
   try {
     const response = await eveNgApi.get('/list/templates');
     const templates = response.data?.data || {};
-    // Convert object to array if needed
     return typeof templates === 'object' ? Object.values(templates) : templates;
   } catch (error) {
     console.error('Error fetching templates:', error);
@@ -300,16 +235,11 @@ export const fetchAllTemplates = async () => {
   }
 };
 
-/**
- * Get template devices/nodes
- * Endpoint: GET /api/list/templates/{template_name}
- */
 export const fetchTemplateDevices = async (templateName) => {
   try {
     const response = await eveNgApi.get(`/list/templates/${templateName}`);
     const data = response.data?.data || {};
     
-    // EVE-NG returns devices as an object, convert to array
     if (typeof data === 'object') {
       return Object.values(data);
     }
@@ -320,15 +250,10 @@ export const fetchTemplateDevices = async (templateName) => {
   }
 };
 
-/**
- * Get node types/images
- * Endpoint: GET /api/list/nodes
- */
 export const fetchNodeTypes = async () => {
   try {
     const response = await eveNgApi.get('/list/nodes');
     const nodes = response.data?.data || {};
-    // Convert object to array if needed
     return typeof nodes === 'object' ? Object.values(nodes) : nodes;
   } catch (error) {
     console.error('Error fetching node types:', error);
@@ -336,12 +261,18 @@ export const fetchNodeTypes = async () => {
   }
 };
 
+export const fetchEveNGTopology = async (labId) => {
+  try {
+    const response = await eveNgApi.get(`/labs/${labId}/topology`);
+    return response.data?.data || {};
+  } catch (error) {
+    console.error('Error fetching topology:', error);
+    return {};
+  }
+};
+
 // ==================== DASHBOARD & MONITORING ====================
 
-/**
- * Get comprehensive dashboard statistics
- * Combines cluster status, system status, and lab information
- */
 export const fetchDashboardStats = async () => {
   try {
     const [systemStatus, labs] = await Promise.all([
@@ -378,10 +309,6 @@ export const fetchDashboardStats = async () => {
   }
 };
 
-/**
- * Get active users
- * Endpoint: GET /api/list/users
- */
 export const fetchActiveUsers = async () => {
   try {
     const response = await eveNgApi.get('/list/users');
@@ -390,6 +317,16 @@ export const fetchActiveUsers = async () => {
   } catch (error) {
     console.error('Error fetching active users:', error);
     return [];
+  }
+};
+
+export const fetchLabMetrics = async (labId) => {
+  try {
+    const response = await eveNgApi.get(`/labs/${labId}/metrics`);
+    return response.data?.data || {};
+  } catch (error) {
+    console.error('Error fetching lab metrics:', error);
+    return {};
   }
 };
 
@@ -430,6 +367,16 @@ export const stopLab = async (labId) => {
 
 export const createLab = async (name, description, topology) => {
   return createEveNGLab({ name, description, topology });
+};
+
+export const deployLab = async (labId, options = {}) => {
+  try {
+    const response = await eveNgApi.post(`/labs/${labId}/deploy`, options);
+    return response.data?.data || response.data;
+  } catch (error) {
+    console.error('Error deploying lab:', error);
+    throw error;
+  }
 };
 
 // ==================== PREBUILT LAB CATEGORIES ====================
@@ -527,6 +474,52 @@ export const publishTemplate = async (templateData) => {
   }
 };
 
+// ==================== RESERVATIONS ====================
+
+export const fetchReservations = async () => {
+  try {
+    const response = await api.get('/reservations');
+    return Array.isArray(response.data) ? response.data : [];
+  } catch (error) {
+    console.error('Error fetching reservations:', error);
+    return [];
+  }
+};
+
+export const createReservation = async (labId, userId, startTime, endTime) => {
+  try {
+    const response = await api.post('/reservations', {
+      lab_id: labId,
+      user_id: userId,
+      start_time: startTime,
+      end_time: endTime,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error creating reservation:', error);
+    throw error;
+  }
+};
+
+export const updateReservation = async (reservationId, data) => {
+  try {
+    const response = await api.put(`/reservations/${reservationId}`, data);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating reservation:', error);
+    throw error;
+  }
+};
+
+export const deleteReservation = async (reservationId) => {
+  try {
+    await api.delete(`/reservations/${reservationId}`);
+  } catch (error) {
+    console.error('Error deleting reservation:', error);
+    throw error;
+  }
+};
+
 // ==================== USER MANAGEMENT ====================
 
 export const fetchUsers = async (skip = 0, limit = 100) => {
@@ -556,11 +549,83 @@ export const createUser = async (username, email, password, role) => {
   }
 };
 
+export const updateUser = async (userId, userData) => {
+  try {
+    const response = await api.put(`/users/${userId}`, userData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating user:', error);
+    throw error;
+  }
+};
+
 export const deleteUser = async (userId) => {
   try {
     await api.delete(`/users/${userId}`);
   } catch (error) {
     console.error('Error deleting user:', error);
+    throw error;
+  }
+};
+
+// ==================== SYSTEM CONFIGURATION ====================
+
+export const fetchSystemConfig = async () => {
+  try {
+    const response = await api.get('/system/config');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching system config:', error);
+    return {};
+  }
+};
+
+export const updateSystemConfig = async (config) => {
+  try {
+    const response = await api.put('/system/config', config);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating system config:', error);
+    throw error;
+  }
+};
+
+// ==================== MONITORING & LOGS ====================
+
+export const fetchUserActivity = async (userId = null, limit = 100) => {
+  try {
+    const response = await api.get('/activity', {
+      params: userId ? { user_id: userId, limit } : { limit },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching user activity:', error);
+    return [];
+  }
+};
+
+export const fetchSystemLogs = async (limit = 100, offset = 0) => {
+  try {
+    const response = await api.get('/logs', {
+      params: { limit, offset },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching system logs:', error);
+    return [];
+  }
+};
+
+export const generateReport = async (reportType, dateRange) => {
+  try {
+    const response = await api.post('/reports/generate', {
+      type: reportType,
+      start_date: dateRange.start,
+      end_date: dateRange.end,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error generating report:', error);
     throw error;
   }
 };
