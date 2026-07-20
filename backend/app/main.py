@@ -29,17 +29,31 @@ def initialize_eve_ng_client():
     """Initialize EVE-NG client on startup"""
     global eve_ng_client
     
-    eve_ng_fqdn = os.getenv("EVE_NG_FQDN", "apssevengvlab.attniglobal.com")
-    eve_ng_port = int(os.getenv("EVE_NG_PORT", 8443))
+    # Load all EVE-NG configuration from environment variables
+    eve_ng_fqdn = os.getenv("EVE_NG_FQDN")
+    eve_ng_port = os.getenv("EVE_NG_PORT", "443")
     eve_ng_protocol = os.getenv("EVE_NG_PROTOCOL", "https")
-    eve_ng_username = os.getenv("EVE_NG_USERNAME", "admin")
-    eve_ng_password = os.getenv("EVE_NG_PASSWORD", "eve")
+    eve_ng_username = os.getenv("EVE_NG_USERNAME")
+    eve_ng_password = os.getenv("EVE_NG_PASSWORD")
     eve_ng_verify_ssl = os.getenv("EVE_NG_VERIFY_SSL", "false").lower() == "true"
+
+    # Validate required environment variables
+    if not eve_ng_fqdn:
+        logger.error("❌ EVE_NG_FQDN environment variable not set")
+        return False
+    
+    if not eve_ng_username:
+        logger.error("❌ EVE_NG_USERNAME environment variable not set")
+        return False
+    
+    if not eve_ng_password:
+        logger.error("❌ EVE_NG_PASSWORD environment variable not set")
+        return False
 
     try:
         eve_ng_client = EVEng(
             host=eve_ng_fqdn,
-            port=eve_ng_port,
+            port=int(eve_ng_port),
             username=eve_ng_username,
             password=eve_ng_password,
             protocol=eve_ng_protocol,
@@ -59,9 +73,15 @@ def initialize_eve_ng_client():
             logger.warning(
                 f"⚠ EVE-NG connection failed. Using database-only mode: {eve_ng_fqdn}:{eve_ng_port}"
             )
+            eve_ng_client = None
             return False
+    except ValueError as e:
+        logger.error(f"❌ EVE-NG configuration error: {str(e)}")
+        eve_ng_client = None
+        return False
     except Exception as e:
         logger.warning(f"⚠ EVE-NG initialization error: {str(e)}. Using database-only mode.")
+        eve_ng_client = None
         return False
 
 
@@ -134,12 +154,12 @@ async def health():
 
 @app.get("/api/config")
 async def get_config():
-    """Get application configuration"""
+    """Get application configuration (environment-based)"""
     return {
         "app_version": "2.0.0",
         "eve_ng": {
-            "fqdn": os.getenv("EVE_NG_FQDN", "apssevengvlab.attniglobal.com"),
-            "port": os.getenv("EVE_NG_PORT", 8443),
+            "fqdn": os.getenv("EVE_NG_FQDN", "not-configured"),
+            "port": os.getenv("EVE_NG_PORT", "443"),
             "protocol": os.getenv("EVE_NG_PROTOCOL", "https"),
             "connected": eve_ng_client is not None and eve_ng_client.auth_token is not None,
         },
