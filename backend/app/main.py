@@ -7,12 +7,10 @@ import json
 from app.database import engine, Base
 from app.routers import labs, deployments, status
 from app.services.eve_ng_client import EVEng
+from app import client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Global EVE-NG client instance
-eve_ng_client = None
 
 
 def get_cors_origins():
@@ -27,7 +25,6 @@ def get_cors_origins():
 
 def initialize_eve_ng_client():
     """Initialize EVE-NG client on startup"""
-    global eve_ng_client
     
     # Load all EVE-NG configuration from environment variables
     eve_ng_fqdn = os.getenv("EVE_NG_FQDN")
@@ -68,20 +65,21 @@ def initialize_eve_ng_client():
             system_info = eve_ng_client.get_system_info()
             if system_info:
                 logger.info(f"✓ EVE-NG System: {system_info}")
+            client.set_eve_ng_client(eve_ng_client)
             return True
         else:
             logger.warning(
                 f"⚠ EVE-NG connection failed. Using database-only mode: {eve_ng_fqdn}:{eve_ng_port}"
             )
-            eve_ng_client = None
+            client.set_eve_ng_client(None)
             return False
     except ValueError as e:
         logger.error(f"❌ EVE-NG configuration error: {str(e)}")
-        eve_ng_client = None
+        client.set_eve_ng_client(None)
         return False
     except Exception as e:
         logger.warning(f"⚠ EVE-NG initialization error: {str(e)}. Using database-only mode.")
-        eve_ng_client = None
+        client.set_eve_ng_client(None)
         return False
 
 
@@ -98,6 +96,7 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
+    eve_ng_client = client.get_eve_ng_client()
     if eve_ng_client:
         eve_ng_client.disconnect()
     logger.info("Application shutting down")
@@ -130,6 +129,7 @@ app.include_router(status.router, prefix="/api/status", tags=["status"])
 
 @app.get("/")
 async def root():
+    eve_ng_client = client.get_eve_ng_client()
     return {
         "message": "EVE Lab Automation API",
         "version": "2.0.0",
@@ -143,6 +143,7 @@ async def health():
     """Health check endpoint"""
     health_status = {"status": "healthy", "database": "connected"}
     
+    eve_ng_client = client.get_eve_ng_client()
     if eve_ng_client:
         eve_ng_health = eve_ng_client.health_check()
         health_status["eve_ng"] = eve_ng_health
@@ -155,6 +156,7 @@ async def health():
 @app.get("/api/config")
 async def get_config():
     """Get application configuration (environment-based)"""
+    eve_ng_client = client.get_eve_ng_client()
     return {
         "app_version": "2.0.0",
         "eve_ng": {
