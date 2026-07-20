@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app import models, schemas
-from app.main import eve_ng_client
+from app import models, schemas, client
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,6 +12,8 @@ router = APIRouter()
 @router.get("/dashboard", response_model=schemas.DashboardStats)
 def get_dashboard_stats(db: Session = Depends(get_db)):
     """Get dashboard statistics from EVE-NG and database"""
+
+    eve_ng_client = client.get_eve_ng_client()
 
     # Initialize counters
     total_labs = 0
@@ -156,6 +157,8 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
 def get_running_labs_count(db: Session = Depends(get_db)):
     """Get count of running labs"""
     
+    eve_ng_client = client.get_eve_ng_client()
+    
     # Try to get from EVE-NG first
     if eve_ng_client and eve_ng_client.auth_token:
         try:
@@ -186,6 +189,8 @@ def get_running_labs_count(db: Session = Depends(get_db)):
 @router.get("/labs/provisioning")
 def get_provisioning_labs(db: Session = Depends(get_db)):
     """Get provisioning labs"""
+    
+    eve_ng_client = client.get_eve_ng_client()
     
     # Try to get from EVE-NG first
     if eve_ng_client and eve_ng_client.auth_token:
@@ -222,6 +227,8 @@ def get_provisioning_labs(db: Session = Depends(get_db)):
 def get_total_labs(db: Session = Depends(get_db)):
     """Get total labs count"""
     
+    eve_ng_client = client.get_eve_ng_client()
+    
     # Try to get from EVE-NG first
     if eve_ng_client and eve_ng_client.auth_token:
         try:
@@ -242,6 +249,7 @@ def get_total_labs(db: Session = Depends(get_db)):
 @router.get("/eve-ng/health")
 def get_eve_ng_health():
     """Get EVE-NG server health status"""
+    eve_ng_client = client.get_eve_ng_client()
     if eve_ng_client:
         health = eve_ng_client.health_check()
         return health
@@ -255,6 +263,7 @@ def get_eve_ng_health():
 @router.get("/eve-ng/system")
 def get_eve_ng_system_info():
     """Get EVE-NG system information"""
+    eve_ng_client = client.get_eve_ng_client()
     if eve_ng_client and eve_ng_client.auth_token:
         try:
             system_info = eve_ng_client.get_system_info()
@@ -272,6 +281,7 @@ def get_eve_ng_system_info():
 @router.get("/eve-ng/resources")
 def get_eve_ng_resources():
     """Get EVE-NG system resource usage"""
+    eve_ng_client = client.get_eve_ng_client()
     if eve_ng_client and eve_ng_client.auth_token:
         try:
             resources = eve_ng_client.get_system_resources()
