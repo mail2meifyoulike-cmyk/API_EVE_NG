@@ -61,10 +61,10 @@ def initialize_eve_ng_client():
         # Test connection
         if eve_ng_client.connect():
             logger.info(f"✓ EVE-NG client initialized: {eve_ng_fqdn}:{eve_ng_port}")
-            # Get system info
-            system_info = eve_ng_client.get_system_info()
-            if system_info:
-                logger.info(f"✓ EVE-NG System: {system_info}")
+            # Get system status (using correct endpoint)
+            system_status = eve_ng_client.get_system_status()
+            if system_status:
+                logger.info(f"✓ EVE-NG System: {system_status}")
             client.set_eve_ng_client(eve_ng_client)
             return True
         else:
