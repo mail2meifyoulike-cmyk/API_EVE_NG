@@ -352,25 +352,25 @@ class EVEng:
             return response["data"]
         return []
 
-    # System APIs
-
-    def get_system_info(self) -> Optional[Dict]:
-        """Get EVE-NG system information"""
-        response = self._make_request("GET", "/system/info")
-        if response and "data" in response:
-            return response["data"]
-        return response
+    # System APIs (Fixed: Using correct EVE-NG API endpoints)
 
     def get_system_status(self) -> Optional[Dict]:
-        """Get EVE-NG system status and statistics"""
-        response = self._make_request("GET", "/system/status")
+        """Get EVE-NG system status and statistics
+        
+        Uses the correct EVE-NG API endpoint: /status
+        This replaces the incorrect /system/info endpoint
+        """
+        response = self._make_request("GET", "/status")
         if response and "data" in response:
             return response["data"]
         return response
 
     def get_system_resources(self) -> Optional[Dict]:
-        """Get system CPU, memory, and disk statistics"""
-        response = self._make_request("GET", "/system/resources")
+        """Get system CPU, memory, and disk statistics
+        
+        Uses the correct EVE-NG API endpoint: /status
+        """
+        response = self._make_request("GET", "/status")
         if response and "data" in response:
             return response["data"]
         return response
@@ -433,14 +433,14 @@ class EVEng:
 
     def health_check(self) -> Dict[str, Any]:
         """
-        Check EVE-NG server health
-
+        Check EVE-NG server health using the correct /status endpoint
+        
         Returns:
             Dictionary with health status
         """
         try:
             response = self.session.get(
-                f"{self.base_url}/api/system/info",
+                f"{self.base_url}/api/status",
                 timeout=5,
                 verify=self.verify_ssl,
             )
