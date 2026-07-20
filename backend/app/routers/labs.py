@@ -3,8 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import logging
 from app.database import get_db
-from app import models, schemas
-from app.main import eve_ng_client
+from app import models, schemas, client
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +13,7 @@ router = APIRouter()
 @router.get("/templates", response_model=List[dict])
 def get_lab_templates():
     """Get available lab templates from EVE-NG"""
+    eve_ng_client = client.get_eve_ng_client()
     if not eve_ng_client or not eve_ng_client.auth_token:
         logger.warning("EVE-NG client not connected, returning empty templates")
         return []
@@ -42,6 +42,7 @@ def get_lab_templates():
 @router.get("/templates/{template_id}/devices", response_model=List[dict])
 def get_template_devices(template_id: str):
     """Get devices/nodes from a specific template"""
+    eve_ng_client = client.get_eve_ng_client()
     if not eve_ng_client or not eve_ng_client.auth_token:
         raise HTTPException(status_code=503, detail="EVE-NG server not connected")
     
@@ -76,6 +77,8 @@ def create_lab(
     db: Session = Depends(get_db)
 ):
     """Create a new lab in EVE-NG and database"""
+    
+    eve_ng_client = client.get_eve_ng_client()
     
     # Check if lab name already exists
     existing_lab = db.query(models.Lab).filter(models.Lab.name == lab.name).first()
@@ -123,6 +126,9 @@ def get_labs(
     db: Session = Depends(get_db)
 ):
     """Get all labs with optional filtering"""
+    
+    eve_ng_client = client.get_eve_ng_client()
+    
     query = db.query(models.Lab)
     
     if status_filter:
@@ -167,6 +173,9 @@ def get_lab(
     db: Session = Depends(get_db)
 ):
     """Get lab details by ID"""
+    
+    eve_ng_client = client.get_eve_ng_client()
+    
     lab = db.query(models.Lab).filter(models.Lab.id == lab_id).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Lab not found")
@@ -215,6 +224,9 @@ def delete_lab(
     db: Session = Depends(get_db)
 ):
     """Delete a lab from database and EVE-NG"""
+    
+    eve_ng_client = client.get_eve_ng_client()
+    
     lab = db.query(models.Lab).filter(models.Lab.id == lab_id).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Lab not found")
@@ -239,6 +251,9 @@ def start_lab(
     db: Session = Depends(get_db)
 ):
     """Start a lab (power on all nodes)"""
+    
+    eve_ng_client = client.get_eve_ng_client()
+    
     lab = db.query(models.Lab).filter(models.Lab.id == lab_id).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Lab not found")
@@ -263,6 +278,9 @@ def stop_lab(
     db: Session = Depends(get_db)
 ):
     """Stop a lab (power off all nodes)"""
+    
+    eve_ng_client = client.get_eve_ng_client()
+    
     lab = db.query(models.Lab).filter(models.Lab.id == lab_id).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Lab not found")
@@ -288,6 +306,9 @@ def upload_lab_file(
     db: Session = Depends(get_db)
 ):
     """Upload lab file (.unl or .zip format)"""
+    
+    eve_ng_client = client.get_eve_ng_client()
+    
     lab = db.query(models.Lab).filter(models.Lab.id == lab_id).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Lab not found")
@@ -335,6 +356,9 @@ def get_lab_nodes(
     db: Session = Depends(get_db)
 ):
     """Get all nodes/devices in a lab"""
+    
+    eve_ng_client = client.get_eve_ng_client()
+    
     lab = db.query(models.Lab).filter(models.Lab.id == lab_id).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Lab not found")
@@ -358,6 +382,9 @@ def get_lab_status(
     db: Session = Depends(get_db)
 ):
     """Get detailed lab status including all nodes"""
+    
+    eve_ng_client = client.get_eve_ng_client()
+    
     lab = db.query(models.Lab).filter(models.Lab.id == lab_id).first()
     if not lab:
         raise HTTPException(status_code=404, detail="Lab not found")
