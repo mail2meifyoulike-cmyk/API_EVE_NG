@@ -1,6 +1,7 @@
 """
 EVE-NG API Client for real server communication
 Credentials are sourced from environment variables only - NO HARDCODED VALUES
+Uses official EVE-NG API specifications with cookie-based authentication
 """
 import requests
 import json
@@ -20,7 +21,9 @@ logger = logging.getLogger(__name__)
 class EVEng:
     """
     EVE-NG API Client for production environment communication
+    Implements official EVE-NG REST API specifications
     All credentials must be provided via environment variables
+    Uses cookie-based authentication as per official documentation
     """
 
     def __init__(
@@ -48,6 +51,7 @@ class EVEng:
         Note:
             Username and password MUST be provided from environment variables.
             They should never be hardcoded.
+            Uses cookie-based authentication as per official EVE-NG API docs.
         """
         if not username or not password:
             raise ValueError(
@@ -64,14 +68,14 @@ class EVEng:
         self.session = requests.Session()
         self.session.verify = verify_ssl
         self.base_url = f"{protocol}://{host}:{port}"
-        self.auth_token = None
+        self.auth_token = True  # Flag to indicate authentication state
         self.cookie_jar = None
 
         logger.info(f"EVE-NG Client initialized for {host}:{port}")
 
     def connect(self) -> bool:
         """
-        Authenticate with EVE-NG server
+        Authenticate with EVE-NG server using cookie-based authentication
 
         Returns:
             bool: True if connection successful, False otherwise
@@ -89,9 +93,16 @@ class EVEng:
 
             if response.status_code == 200:
                 data = response.json()
-                self.auth_token = data.get("data", {}).get("token")
-                logger.info(f"✓ Connected to EVE-NG server: {self.host}:{self.port}")
-                return True
+                # Check for success in response
+                if data.get("status") == "ok" or data.get("code") == 200:
+                    self.auth_token = True
+                    logger.info(f"✓ Connected to EVE-NG server: {self.host}:{self.port}")
+                    return True
+                else:
+                    logger.error(
+                        f"✗ EVE-NG authentication failed: {data.get('message', 'Unknown error')}"
+                    )
+                    return False
             else:
                 logger.error(
                     f"✗ EVE-NG authentication failed: {response.status_code}"
@@ -110,9 +121,10 @@ class EVEng:
 
     def _get_headers(self) -> Dict[str, str]:
         """Get request headers with authentication token"""
-        headers = {"Content-Type": "application/json"}
-        if self.auth_token:
-            headers["Authorization"] = f"Bearer {self.auth_token}"
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
         return headers
 
     def _make_request(
@@ -191,6 +203,7 @@ class EVEng:
             return None
 
     # Lab Management APIs
+    # Note: Lab paths in EVE-NG are hierarchical (e.g., /Admin/Lab1)
 
     def get_labs(self) -> Optional[List[Dict]]:
         """Get all labs from EVE-NG"""
@@ -199,16 +212,24 @@ class EVEng:
             return response["data"]
         return []
 
-    def get_lab(self, lab_id: str) -> Optional[Dict]:
-        """Get specific lab details"""
-        response = self._make_request("GET", f"/labs/{lab_id}")
+    def get_lab(self, lab_path: str) -> Optional[Dict]:
+        """Get specific lab details
+        
+        Args:
+            lab_path: Lab path (e.g., /Admin/Lab1)
+        """
+        response = self._make_request("GET", f"/labs{lab_path}")
         if response and "data" in response:
             return response["data"]
         return None
 
-    def get_lab_status(self, lab_id: str) -> Optional[Dict]:
-        """Get lab status and statistics"""
-        response = self._make_request("GET", f"/labs/{lab_id}/status")
+    def get_lab_status(self, lab_path: str) -> Optional[Dict]:
+        """Get lab status and statistics
+        
+        Args:
+            lab_path: Lab path (e.g., /Admin/Lab1)
+        """
+        response = self._make_request("GET", f"/labs{lab_path}/status")
         if response:
             return response.get("data", response)
         return None
@@ -221,53 +242,89 @@ class EVEng:
             return response["data"]
         return response
 
-    def delete_lab(self, lab_id: str) -> bool:
-        """Delete a lab"""
-        response = self._make_request("DELETE", f"/labs/{lab_id}")
+    def delete_lab(self, lab_path: str) -> bool:
+        """Delete a lab
+        
+        Args:
+            lab_path: Lab path (e.g., /Admin/Lab1)
+        """
+        response = self._make_request("DELETE", f"/labs{lab_path}")
         return response is not None
 
-    def start_lab(self, lab_id: str) -> bool:
-        """Start a lab (power on all nodes)"""
-        response = self._make_request("PUT", f"/labs/{lab_id}/start")
+    def start_lab(self, lab_path: str) -> bool:
+        """Start a lab (power on all nodes)
+        
+        Args:
+            lab_path: Lab path (e.g., /Admin/Lab1)
+        """
+        response = self._make_request("PUT", f"/labs{lab_path}/start")
         return response is not None
 
-    def stop_lab(self, lab_id: str) -> bool:
-        """Stop a lab (power off all nodes)"""
-        response = self._make_request("PUT", f"/labs/{lab_id}/stop")
+    def stop_lab(self, lab_path: str) -> bool:
+        """Stop a lab (power off all nodes)
+        
+        Args:
+            lab_path: Lab path (e.g., /Admin/Lab1)
+        """
+        response = self._make_request("PUT", f"/labs{lab_path}/stop")
         return response is not None
 
     # Node Management APIs
 
-    def get_lab_nodes(self, lab_id: str) -> Optional[List[Dict]]:
-        """Get all nodes in a lab"""
-        response = self._make_request("GET", f"/labs/{lab_id}/nodes")
+    def get_lab_nodes(self, lab_path: str) -> Optional[List[Dict]]:
+        """Get all nodes in a lab
+        
+        Args:
+            lab_path: Lab path (e.g., /Admin/Lab1)
+        """
+        response = self._make_request("GET", f"/labs{lab_path}/nodes")
         if response and "data" in response:
             return response["data"]
         return []
 
-    def get_node(self, lab_id: str, node_id: str) -> Optional[Dict]:
-        """Get specific node details"""
-        response = self._make_request("GET", f"/labs/{lab_id}/nodes/{node_id}")
+    def get_node(self, lab_path: str, node_id: str) -> Optional[Dict]:
+        """Get specific node details
+        
+        Args:
+            lab_path: Lab path (e.g., /Admin/Lab1)
+            node_id: Node ID
+        """
+        response = self._make_request("GET", f"/labs{lab_path}/nodes/{node_id}")
         if response and "data" in response:
             return response["data"]
         return None
 
-    def start_node(self, lab_id: str, node_id: str) -> bool:
-        """Start a node (power on)"""
-        response = self._make_request("PUT", f"/labs/{lab_id}/nodes/{node_id}/start")
+    def start_node(self, lab_path: str, node_id: str) -> bool:
+        """Start a node (power on)
+        
+        Args:
+            lab_path: Lab path (e.g., /Admin/Lab1)
+            node_id: Node ID
+        """
+        response = self._make_request("PUT", f"/labs{lab_path}/nodes/{node_id}/start")
         return response is not None
 
-    def stop_node(self, lab_id: str, node_id: str) -> bool:
-        """Stop a node (power off)"""
-        response = self._make_request("PUT", f"/labs/{lab_id}/nodes/{node_id}/stop")
+    def stop_node(self, lab_path: str, node_id: str) -> bool:
+        """Stop a node (power off)
+        
+        Args:
+            lab_path: Lab path (e.g., /Admin/Lab1)
+            node_id: Node ID
+        """
+        response = self._make_request("PUT", f"/labs{lab_path}/nodes/{node_id}/stop")
         return response is not None
 
     # Interface APIs
 
-    def get_node_interfaces(self, lab_id: str, node_id: str) -> Optional[List[Dict]]:
-        """Get node interfaces"""
+    def get_node_interfaces(self, lab_path: str, node_id: str) -> Optional[List[Dict]]:
+        """Get node interfaces
+        
+        Args:
+            lab_path: Lab path (e.g., /Admin/Lab1)
+            node_id: Node ID
+        """
         response = self._make_request(
-            "GET", f"/labs/{lab_id}/nodes/{node_id}/interfaces"
+            "GET", f"/labs{lab_path}/nodes/{node_id}/interfaces"
         )
         if response and "data" in response:
             return response["data"]
@@ -275,9 +332,13 @@ class EVEng:
 
     # Network APIs
 
-    def get_networks(self, lab_id: str) -> Optional[List[Dict]]:
-        """Get all networks in a lab"""
-        response = self._make_request("GET", f"/labs/{lab_id}/networks")
+    def get_networks(self, lab_path: str) -> Optional[List[Dict]]:
+        """Get all networks in a lab
+        
+        Args:
+            lab_path: Lab path (e.g., /Admin/Lab1)
+        """
+        response = self._make_request("GET", f"/labs{lab_path}/networks")
         if response and "data" in response:
             return response["data"]
         return []
@@ -316,25 +377,39 @@ class EVEng:
 
     # Snapshot APIs
 
-    def get_snapshots(self, lab_id: str) -> Optional[List[Dict]]:
-        """Get all snapshots for a lab"""
-        response = self._make_request("GET", f"/labs/{lab_id}/snapshots")
+    def get_snapshots(self, lab_path: str) -> Optional[List[Dict]]:
+        """Get all snapshots for a lab
+        
+        Args:
+            lab_path: Lab path (e.g., /Admin/Lab1)
+        """
+        response = self._make_request("GET", f"/labs{lab_path}/snapshots")
         if response and "data" in response:
             return response["data"]
         return []
 
-    def create_snapshot(self, lab_id: str, snapshot_name: str) -> Optional[Dict]:
-        """Create a snapshot of the current lab state"""
+    def create_snapshot(self, lab_path: str, snapshot_name: str) -> Optional[Dict]:
+        """Create a snapshot of the current lab state
+        
+        Args:
+            lab_path: Lab path (e.g., /Admin/Lab1)
+            snapshot_name: Name for the snapshot
+        """
         payload = {"name": snapshot_name}
-        response = self._make_request("POST", f"/labs/{lab_id}/snapshots", data=payload)
+        response = self._make_request("POST", f"/labs{lab_path}/snapshots", data=payload)
         if response and "data" in response:
             return response["data"]
         return response
 
-    def restore_snapshot(self, lab_id: str, snapshot_id: str) -> bool:
-        """Restore lab from snapshot"""
+    def restore_snapshot(self, lab_path: str, snapshot_id: str) -> bool:
+        """Restore lab from snapshot
+        
+        Args:
+            lab_path: Lab path (e.g., /Admin/Lab1)
+            snapshot_id: Snapshot ID
+        """
         response = self._make_request(
-            "PUT", f"/labs/{lab_id}/snapshots/{snapshot_id}/restore"
+            "PUT", f"/labs{lab_path}/snapshots/{snapshot_id}/restore"
         )
         return response is not None
 
@@ -396,10 +471,10 @@ class EVEng:
             }
 
     def disconnect(self) -> bool:
-        """Logout from EVE-NG"""
+        """Logout from EVE-NG using official API logout endpoint"""
         try:
             response = self._make_request("POST", "/auth/logout")
-            self.auth_token = None
+            self.auth_token = False
             logger.info("Disconnected from EVE-NG")
             return True
         except Exception as e:
