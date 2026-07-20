@@ -1,5 +1,6 @@
 """
 EVE-NG API Client for real server communication
+Credentials are sourced from environment variables only - NO HARDCODED VALUES
 """
 import requests
 import json
@@ -19,14 +20,15 @@ logger = logging.getLogger(__name__)
 class EVEng:
     """
     EVE-NG API Client for production environment communication
+    All credentials must be provided via environment variables
     """
 
     def __init__(
         self,
         host: str,
-        port: int = 8443,
-        username: str = "admin",
-        password: str = "eve",
+        port: int = 443,
+        username: str = None,
+        password: str = None,
         protocol: str = "https",
         verify_ssl: bool = False,
         timeout: int = 30,
@@ -35,14 +37,23 @@ class EVEng:
         Initialize EVE-NG API Client
 
         Args:
-            host: EVE-NG server hostname or IP
-            port: EVE-NG API port (default 8443)
-            username: Admin username
-            password: Admin password
+            host: EVE-NG server hostname or FQDN
+            port: EVE-NG API port (default 443)
+            username: Admin username (from environment)
+            password: Admin password (from environment)
             protocol: https or http
             verify_ssl: SSL certificate verification
             timeout: Request timeout in seconds
+
+        Note:
+            Username and password MUST be provided from environment variables.
+            They should never be hardcoded.
         """
+        if not username or not password:
+            raise ValueError(
+                "EVE_NG_USERNAME and EVE_NG_PASSWORD environment variables must be set"
+            )
+
         self.host = host
         self.port = port
         self.username = username
@@ -55,6 +66,8 @@ class EVEng:
         self.base_url = f"{protocol}://{host}:{port}"
         self.auth_token = None
         self.cookie_jar = None
+
+        logger.info(f"EVE-NG Client initialized for {host}:{port}")
 
     def connect(self) -> bool:
         """
@@ -77,7 +90,7 @@ class EVEng:
             if response.status_code == 200:
                 data = response.json()
                 self.auth_token = data.get("data", {}).get("token")
-                logger.info(f"✓ Connected to EVE-NG server: {self.host}")
+                logger.info(f"✓ Connected to EVE-NG server: {self.host}:{self.port}")
                 return True
             else:
                 logger.error(
@@ -362,6 +375,7 @@ class EVEng:
                     "status": "healthy",
                     "connected": True,
                     "host": self.host,
+                    "port": self.port,
                     "version": data.get("data", {}).get("version", "unknown"),
                 }
             else:
@@ -369,6 +383,7 @@ class EVEng:
                     "status": "unhealthy",
                     "connected": False,
                     "host": self.host,
+                    "port": self.port,
                     "error": f"Status code: {response.status_code}",
                 }
         except Exception as e:
@@ -376,6 +391,7 @@ class EVEng:
                 "status": "unhealthy",
                 "connected": False,
                 "host": self.host,
+                "port": self.port,
                 "error": str(e),
             }
 
