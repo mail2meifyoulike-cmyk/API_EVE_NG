@@ -1,0 +1,2 @@
+# Import type hints
+from typing import Dict
