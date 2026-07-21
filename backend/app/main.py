@@ -1,179 +1,197 @@
+"""
+Refactored main.py - Application entry point
+
+Integrates modular services, middleware, and routers.
+"""
+
+import os
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-import logging
-import os
-import json
-from app.database import engine, Base
-from app.routers import labs, deployments, status
-from app.services.eve_ng_client import EVEng
+from fastapi.exceptions import RequestValidationError
+from starlette.responses import JSONResponse
 from app import client
+from app.services.eve.client import EVEngHTTPClient
+from app.middleware.logging import LoggingMiddleware
+from app.middleware.error_handler import ErrorHandler
+from app.utils.exceptions import EVELabException
+from app.api import auth, labs, deployments, status
+from app.database import engine, Base
 
-logging.basicConfig(level=logging.INFO)
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 
 def get_cors_origins():
-    """Load CORS origins from environment variable"""
-    cors_env = os.getenv("CORS_ORIGINS", '["http://localhost:3000"]')
+    """
+    Get CORS origins from environment variable.
+    """
+    cors_origins = os.getenv(
+        "CORS_ORIGINS",
+        '["http://localhost:3000", "http://192.168.109.132:3000"]',
+    )
     try:
-        return json.loads(cors_env)
-    except json.JSONDecodeError:
-        logger.warning("Invalid CORS_ORIGINS format, using default")
-        return ["http://localhost:3000"]
+        import json
+        return json.loads(cors_origins)
+    except Exception:
+        logger.warning("Failed to parse CORS_ORIGINS, using defaults")
+        return ["http://localhost:3000", "http://192.168.109.132:3000"]
 
 
 def initialize_eve_ng_client():
-    """Initialize EVE-NG client on startup"""
-    
-    # Load all EVE-NG configuration from environment variables
-    eve_ng_fqdn = os.getenv("EVE_NG_FQDN")
-    eve_ng_port = os.getenv("EVE_NG_PORT", "443")
-    eve_ng_protocol = os.getenv("EVE_NG_PROTOCOL", "https")
-    eve_ng_username = os.getenv("EVE_NG_USERNAME")
-    eve_ng_password = os.getenv("EVE_NG_PASSWORD")
-    eve_ng_verify_ssl = os.getenv("EVE_NG_VERIFY_SSL", "false").lower() == "true"
-
-    # Validate required environment variables
-    if not eve_ng_fqdn:
-        logger.error("❌ EVE_NG_FQDN environment variable not set")
-        return False
-    
-    if not eve_ng_username:
-        logger.error("❌ EVE_NG_USERNAME environment variable not set")
-        return False
-    
-    if not eve_ng_password:
-        logger.error("❌ EVE_NG_PASSWORD environment variable not set")
-        return False
-
+    """
+    Initialize EVE-NG client on startup.
+    """
     try:
-        eve_ng_client = EVEng(
-            host=eve_ng_fqdn,
-            port=int(eve_ng_port),
-            username=eve_ng_username,
-            password=eve_ng_password,
+        eve_ng_ip = os.getenv("EVE_NG_IP", "192.168.2.11")
+        eve_ng_port = int(os.getenv("EVE_NG_PORT", 8443))
+        eve_ng_protocol = os.getenv("EVE_NG_PROTOCOL", "https")
+
+        logger.info(
+            f"Initializing EVE-NG client: {eve_ng_protocol}://{eve_ng_ip}:{eve_ng_port}"
+        )
+
+        http_client = EVEngHTTPClient(
+            host=eve_ng_ip,
+            port=eve_ng_port,
             protocol=eve_ng_protocol,
-            verify_ssl=eve_ng_verify_ssl,
+            verify_ssl=False,  # Self-signed certificates
             timeout=30,
         )
 
-        # Test connection
-        if eve_ng_client.connect():
-            logger.info(f"✓ EVE-NG client initialized: {eve_ng_fqdn}:{eve_ng_port}")
-            # Get system status (using correct endpoint)
-            system_status = eve_ng_client.get_system_status()
-            if system_status:
-                logger.info(f"✓ EVE-NG System: {system_status}")
-            client.set_eve_ng_client(eve_ng_client)
-            return True
-        else:
-            logger.warning(
-                f"⚠ EVE-NG connection failed. Using database-only mode: {eve_ng_fqdn}:{eve_ng_port}"
-            )
-            client.set_eve_ng_client(None)
-            return False
-    except ValueError as e:
-        logger.error(f"❌ EVE-NG configuration error: {str(e)}")
-        client.set_eve_ng_client(None)
-        return False
+        # Set global client
+        client.set_eve_ng_client(type("EVEngClient", (), {"_client": http_client})())
+
+        logger.info("✓ EVE-NG client initialized")
     except Exception as e:
-        logger.warning(f"⚠ EVE-NG initialization error: {str(e)}. Using database-only mode.")
-        client.set_eve_ng_client(None)
-        return False
+        logger.error(f"✗ Failed to initialize EVE-NG client: {str(e)}")
 
 
-# Create tables and initialize EVE-NG on startup
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for startup and shutdown.
+    """
     # Startup
+    logger.info("=" * 50)
+    logger.info("API_EVE_NG Backend Starting...")
+    logger.info("=" * 50)
+
+    # Create database tables
+    logger.info("Creating database tables...")
     Base.metadata.create_all(bind=engine)
     logger.info("✓ Database tables created")
-    
+
     # Initialize EVE-NG client
     initialize_eve_ng_client()
-    
+
+    logger.info("✓ Backend ready")
+    logger.info("=" * 50)
+
     yield
-    
+
     # Shutdown
-    eve_ng_client = client.get_eve_ng_client()
-    if eve_ng_client:
-        eve_ng_client.disconnect()
-    logger.info("Application shutting down")
+    logger.info("=" * 50)
+    logger.info("API_EVE_NG Backend Shutting Down...")
+    logger.info("=" * 50)
 
 
+# Create FastAPI app
 app = FastAPI(
-    title="EVE Lab Automation API",
-    description="API for managing lab automation, deployment, and provisioning with real EVE-NG integration",
+    title="API_EVE_NG",
+    description="Backend API for EVE-NG Lab Management",
     version="2.0.0",
     lifespan=lifespan,
 )
 
-# CORS middleware with environment-based configuration
-cors_origins = get_cors_origins()
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-logger.info(f"CORS Origins configured: {cors_origins}")
+# Add logging middleware
+
+
+@app.middleware("http")
+async def logging_middleware(request, call_next):
+    return await LoggingMiddleware.log_request(request, call_next)
+
+
+# Register exception handlers
+@app.exception_handler(EVELabException)
+async def eve_lab_exception_handler(request, exc):
+    return await ErrorHandler.eve_lab_exception_handler(request, exc)
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request, exc):
+    return await ErrorHandler.general_exception_handler(request, exc)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=400,
+        content={
+            "detail": "Invalid request",
+            "errors": [str(e) for e in exc.errors()],
+        },
+    )
+
 
 # Include routers
-app.include_router(labs.router, prefix="/api/labs", tags=["labs"])
-app.include_router(deployments.router, prefix="/api/deployments", tags=["deployments"])
-app.include_router(status.router, prefix="/api/status", tags=["status"])
+app.include_router(
+    auth.router,
+    prefix="/api/auth",
+    tags=["Authentication"],
+)
+app.include_router(
+    labs.router,
+    prefix="/api/labs",
+    tags=["Labs"],
+)
+app.include_router(
+    deployments.router,
+    prefix="/api/deployments",
+    tags=["Deployments"],
+)
+app.include_router(
+    status.router,
+    prefix="/api/status",
+    tags=["Status"],
+)
 
 
+# Root endpoint
 @app.get("/")
 async def root():
-    eve_ng_client = client.get_eve_ng_client()
+    """
+    API root endpoint.
+    """
     return {
-        "message": "EVE Lab Automation API",
+        "message": "API_EVE_NG Backend",
         "version": "2.0.0",
         "docs": "/docs",
-        "eve_ng_enabled": eve_ng_client is not None and eve_ng_client.auth_token is not None,
-    }
-
-
-@app.get("/health")
-async def health():
-    """Health check endpoint"""
-    health_status = {"status": "healthy", "database": "connected"}
-    
-    eve_ng_client = client.get_eve_ng_client()
-    if eve_ng_client:
-        eve_ng_health = eve_ng_client.health_check()
-        health_status["eve_ng"] = eve_ng_health
-    else:
-        health_status["eve_ng"] = {"status": "disconnected", "connected": False}
-    
-    return health_status
-
-
-@app.get("/api/config")
-async def get_config():
-    """Get application configuration (environment-based)"""
-    eve_ng_client = client.get_eve_ng_client()
-    return {
-        "app_version": "2.0.0",
-        "eve_ng": {
-            "fqdn": os.getenv("EVE_NG_FQDN", "not-configured"),
-            "port": os.getenv("EVE_NG_PORT", "443"),
-            "protocol": os.getenv("EVE_NG_PROTOCOL", "https"),
-            "connected": eve_ng_client is not None and eve_ng_client.auth_token is not None,
-        },
-        "features": {
-            "labs": True,
-            "deployments": True,
-            "real_time_monitoring": eve_ng_client is not None,
-        },
+        "redoc": "/redoc",
     }
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=False,
+        log_level="info",
+    )
