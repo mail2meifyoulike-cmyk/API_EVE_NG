@@ -1,17 +1,22 @@
+# Production Docker Compose Configuration
 version: '3.8'
 
 services:
+  # PostgreSQL Database
   db:
     image: postgres:15-alpine
     container_name: eve_postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${DATABASE_NAME:-eve_db}
       POSTGRES_USER: ${DATABASE_USER:-eve_user}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-eve_password}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-eve_user}"]
       interval: 10s
@@ -19,58 +24,165 @@ services:
       retries: 5
     networks:
       - eve_network
+    labels:
+      com.example.description: "PostgreSQL Database"
 
+  # Backend API
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: eve_backend
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-      FASTAPI_ENV: ${FASTAPI_ENV:-production}
+      # Database
+      DATABASE_URL: postgresql://${DATABASE_USER:-eve_user}:${DATABASE_PASSWORD:-eve_password}@db:5432/${DATABASE_NAME:-eve_db}
+      
+      # EVE-NG Configuration (Backend Only)
+      EVE_NG_FQDN: ${EVE_NG_FQDN:-evengvlab.ddns.net}
+      EVE_NG_PORT: ${EVE_NG_PORT:-443}
+      EVE_NG_PROTOCOL: ${EVE_NG_PROTOCOL:-https}
+      EVE_NG_USERNAME: ${EVE_NG_USERNAME:-admin}
+      EVE_NG_PASSWORD: ${EVE_NG_PASSWORD}
+      EVE_NG_VERIFY_SSL: ${EVE_NG_VERIFY_SSL:-false}
+      
+      # Security
       SECRET_KEY: ${SECRET_KEY}
-      APP_IP: 192.168.109.132
-      APP_PORT: 8000
-      EVE_NG_IP: 192.168.2.11
-      EVE_NG_FQDN: evengvlab4you.ddns.net
-      EVE_NG_PORT: 8443
-      EVE_NG_PROTOCOL: https
-      CORS_ORIGINS: '["http://192.168.109.132:3000", "http://localhost:3000"]'
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      
+      # CORS Configuration
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000"]}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+      # Rate Limiting
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-100}
+      RATE_LIMIT_PERIOD: ${RATE_LIMIT_PERIOD:-3600}
+      
+      # Monitoring
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      
+      # Environment
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+    
     ports:
       - "8000:8000"
+    
     volumes:
-      - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+      - ./backend/logs:/app/logs
+    
     networks:
       - eve_network
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    labels:
+      com.example.description: "FastAPI Backend"
 
+  # Frontend Application
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: eve_frontend
+    restart: unless-stopped
     depends_on:
       - backend
     environment:
-      REACT_APP_API_URL: http://192.168.109.132:8000
+      REACT_APP_API_URL: http://${APP_IP:-localhost}:${BACKEND_PORT:-8000}
       REACT_APP_API_BASE_URL: /api
-      REACT_APP_EVE_NG_IP: 192.168.2.11
-      REACT_APP_EVE_NG_FQDN: evengvlab4you.ddns.net
-      REACT_APP_EVE_NG_PORT: 8443
-      REACT_APP_EVE_NG_PROTOCOL: https
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend:/app
-    command: npm start
     networks:
       - eve_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      com.example.description: "React Frontend"
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: eve_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - eve_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      com.example.description: "Nginx Reverse Proxy"
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: eve_prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - eve_network
+    depends_on:
+      - backend
+    labels:
+      com.example.description: "Prometheus Monitoring"
+
+  # Grafana Dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: eve_grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - eve_network
+    depends_on:
+      - prometheus
+    labels:
+      com.example.description: "Grafana Dashboards"
 
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   eve_network:
