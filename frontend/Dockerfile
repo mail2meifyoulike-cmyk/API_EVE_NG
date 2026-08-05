@@ -4,7 +4,7 @@ FROM node:18-alpine as builder
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json ./
+COPY package*.json ./
 
 # Install dependencies: prefer npm ci when package-lock.json exists, otherwise fall back to npm install
 RUN if [ -f package-lock.json ]; then \
